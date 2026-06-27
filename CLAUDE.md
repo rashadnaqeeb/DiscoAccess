@@ -1,0 +1,155 @@
+# DiscoAccess - Claude Code Instructions
+
+DiscoAccess makes **Disco Elysium (The Final Cut)** playable by blind users. Speech is the sole
+interface, so if something fails silently, speaks stale data, or omits information, the player has no
+way to know. A logged failure is actionable; a silent one is invisible.
+
+The game is a dialogue-heavy isometric RPG with no combat and no real-time action, so the work splits
+the way our reference mods did: a **UI layer** (menus, dialogue, inventory, thought cabinet, character
+sheet) read by hooking the game's focus system and announcing, and a **world layer** (the isometric
+scene you move through and click) read with a cursor plus a scanner of interactables. We ride the
+game's own controller-navigation and pathfinding.
+
+## Game & environment
+
+- Engine: **Unity 2020.3.12f1, IL2CPP, x64** (build 2022-05-20, ZAUM). Game code is native
+  (`GameAssembly.dll` + `il2cpp_data/Metadata/global-metadata.dat`), so we work through Il2CppInterop proxies.
+- Install: the build resolves the game folder itself (`GameDir`), so no machine path is committed - it
+  reads Steam's main library from the registry, with overrides via `-p:GameDir=...`, the
+  `DISCO_ELYSIUM_DIR` env var, or a gitignored `Directory.Build.local.props` (see `Directory.Build.props`).
+  For an install outside Steam's main library, set one of those overrides. The game must
+  be launched **through Steam**; running `disco.exe` directly exits on the DRM check.
+- Loader: **BepInEx 6.0.0-pre.2, Unity.IL2CPP win-x64** (vendored in `third_party/bepinex/`). It runs
+  Il2CppInterop on first launch to generate managed proxy assemblies under `<game>\BepInEx\interop\` -
+  those are our compile targets (Il2Cpp-prefixed types). Bundles HarmonyX. Mod assemblies run on
+  **.NET 6** (BepInEx's bundled CoreCLR), so the plugin targets `net6.0`.
+- Middleware: UI is **uGUI + TextMeshPro**; dialogue is the **Pixel Crushers Dialogue System**
+  (`DialogueSystem.dll`, `PixelCrushers.dll`); localization is **I2** (`l2Localization.dll`). DE wraps
+  much of its UI in a custom "Sunshine" / "Pages" framework (`PagesSystem`, `Pages.Gameplay.*`, `SubPage`).
+- Speech backend is **Prism** (https://github.com/ethindp/prism), bound via hand-written P/Invoke
+  against `prism.dll`, vendored in `third_party/prism/` and deployed next to `disco.exe`.
+- Logs: our lines go through BepInEx logging with a `[DiscoAccess]` prefix into
+  `<game>\BepInEx\LogOutput.log` (truncated each launch).
+
+## Decompiled reference
+
+`decompiled/` (gitignored) holds the game's class surface for lookup: `dummydll/` (Cpp2IL stub DLLs)
+and `src/` (ilspy C# per type - Assembly-CSharp, DialogueSystem, PixelCrushers, l2Localization). Look
+up any game type/method/field signature here before guessing.
+
+**Caveat: the Cpp2IL dummy DLLs have accurate signatures but EMPTY method bodies** (everything returns
+`false`/`default`/`null`). Read structure from them, never logic. For real behavior, re-dump targeted
+classes with Cpp2IL's IL-recovery mode (`tools/Cpp2IL.exe`), read the public Pixel Crushers docs, or
+confirm live with debug logging. Re-dump after a game update.
+
+## Build & deploy
+
+`dotnet build` is the whole loop. The `DiscoAccess` project has a post-build target (Debug only) that
+copies `DiscoAccess.dll` + `DiscoAccess.Core.dll` into `<GameDir>\BepInEx\plugins\DiscoAccess\` and
+`prism.dll` next to `disco.exe`, with `GameDir` auto-detected (see above). **Close the game first** or
+the dll copy is skipped (file locked) and you'll run a stale build. `build.ps1` is just a wrapper for
+`dotnet build`; deploy is automatic.
+
+- `dotnet build DiscoAccess.slnx -c Debug` - build all three projects and deploy.
+- `dotnet test DiscoAccess.slnx` - run the unit suite (Core only; no game, no Unity).
+- `dotnet build -c Release` compiles without deploying.
+
+After a game update, relaunch once through Steam to regenerate `BepInEx/interop/`, and re-dump
+`decompiled/` with Cpp2IL.
+
+## Architecture
+
+Three projects, the Hand-of-Fate split adapted to IL2CPP:
+
+- **`DiscoAccess.Core`** (netstandard2.0) - engine-agnostic logic: the speech pipeline, text filter,
+  announcement composition, the authored-strings table. References nothing external (no Unity, no
+  BepInEx) so it stays unit-testable off-engine. If a piece of code decides what words the user hears,
+  it belongs here.
+- **`DiscoAccess`** (net6.0) - the BepInEx plugin: engine + native glue only (the plugin entry, the
+  Prism P/Invoke + backend, the per-frame pump, and thin adapters that read live UI/world state). If a
+  piece of code pulls a value off a label or game object, it belongs here.
+- **`DiscoAccess.Tests`** (net8.0 + xUnit) - references Core only. No Unity, no game launch.
+
+**Adapter / composition split.** Reading live game state touches Unity and lives in a thin adapter in
+the plugin that extracts raw state into plain data (no Unity types past the boundary) and does no
+formatting. The announcement is composed from that data by Core, which is unit-tested.
+
+**Announce from the pump.** A hook (Harmony patch, event) records state or sets a dirty flag; the
+per-frame pump reads that and speaks, so announcements happen once per frame in one place. (Behavioral
+speech/state/announcement rules are under Conventions below.)
+
+## Conventions & invariants
+
+**Speech, logging & input**
+- All speech goes through `SpeechPipeline` (`DiscoAccess.Core.Speech.SpeechPipeline`); never call the
+  Prism backend directly. All logging goes through the mod's logger (the BepInEx `ManualLogSource`,
+  surfaced as `Plugin.Logger`; if logic in Core ever needs to log, route it through a seam so Core
+  stays dependency-free), never Unity's `Debug.Log`. Inside any `*.Input` namespace, fully qualify `UnityEngine.Input`.
+- Never interrupt existing speech unless an action supersedes it (navigation). Default to queued.
+
+**State & strings**
+- **Never cache game state.** Do not copy game data into mod-side dictionaries, lists, or string
+  fields for later use; re-query the game when you need a value. A sighted player can see when the
+  screen contradicts itself; a blind player trusts speech absolutely, so stale data is worse than no
+  data. The only acceptable "cache" is holding a reference to a live Unity component (e.g. a
+  `TMP_Text`) and reading its properties at speech time. When several callers read the same game model,
+  centralize reads in one View class.
+- **Reuse game data, avoid hardcoding.** Use the game's own localized text and live UI state wherever
+  possible; look up game strings through I2 Localization (`I2.Loc.LocalizationManager.GetTranslation(term)`,
+  or DE's `LocalizationCustomSystem.LocalizationUtils` wrapper), and read dialogue live through the
+  Pixel Crushers model (`Subtitle` / `Response`) and orb text via `SenseOrb.GetText()`. Hardcoded text
+  goes stale across game updates and blocks translation. Before authoring any string, first check
+  whether a game string could be used; only author one when no game data source exists (the mod's own
+  screen and section names and status words, like the load announcement, are the usual cases that have
+  none).
+- **No inline user-facing string literals.** Every word the mod itself authors and speaks must come
+  from the mod's central strings table in Core (`DiscoAccess.Core.Strings.Strings`), never an inline
+  literal, so the authored set can be translated later. Punctuation and log/debug text are exempt.
+
+**Announcements (mod-authored text only — never reword game text).** Users are expert screen-reader
+users; strip fluff, never information.
+- Distinguishing word first: the sooner the varying part appears, the faster the user moves on
+  ("anchored cursor", not "cursor anchored").
+- No positional counts ("3 of 10") — the reader tracks position. No nav hints unless an unusual
+  control, and on a delay. No redundant context or obvious type suffixes.
+- Include all gameplay-relevant detail (dialogue and response text, skill-check odds, item details, an
+  orb's type and distance); concise means no fluff, not less information. Avoid emdashes (the reader
+  announces them as "dash", breaking flow) and fancy punctuation.
+
+**No silent failures.** The mod runs on a per-frame pump, Harmony patches, and IL2CPP interop, which
+fail invisibly unless logged: a swallowed exception in the pump or a patch silently stops a feature
+with no error the player can see. Every catch logs via `Plugin.Logger.LogWarning`/`LogError` what
+failed and where. No empty catches, no catch-and-return-default without logging. A logged failure is
+actionable; a silent one is invisible.
+
+## Common LLM Antipatterns
+
+### Comments and docs: state what is, not what isn't
+Comments and documentation describe the current state and why - not the change history, the absence of
+something, or a path not taken. Consider whether a comment is needed at all.
+
+**WRONG**: `// Removed the old UI system. Now x does y.`
+**WRONG**: `// Changed to use controllers. Now handles force_close`
+**WRONG**: `// We don't use the Prismatoid NuGet` (documents a non-thing)
+**CORRECT**: `// Can be closed with the controller`
+
+This governs descriptive text. Prescriptive rules and API contracts ("never call the backend
+directly") and a what-happens fact that justifies an instruction ("launch through Steam; running
+disco.exe directly exits") state what to do and are fine.
+
+### Defensive null handling
+Excessive validation hides bugs. Only null-check where null is a legitimate, expected state (e.g.,
+after `FirstOrDefault()`, at public API boundaries). Let code crash otherwise — a crash is visible, a
+silently swallowed null is not. Trust private callers.
+
+**WRONG** — silently returning empty instead of crashing:
+```csharp
+if (entity == null) return new List();
+var controller = entity.GetControlBehavior();
+if (controller == null) return new List();
+```
+
+**WRONG** — `?.` on things that should never be null:
+`var name = entity?.GetController()?.Sections?.FirstOrDefault()?.Name ?? "default";`
+
+**CORRECT**: `var name = entity.GetController().Sections.FirstOrDefault()?.Name ?? "default";`

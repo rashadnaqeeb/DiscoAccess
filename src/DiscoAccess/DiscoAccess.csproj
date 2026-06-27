@@ -1,0 +1,51 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The BepInEx 6 IL2CPP plugin: engine + native glue only. References the loader's core dlls and the
+    Il2CppInterop-generated proxy assemblies (BepInEx/interop, produced on the game's first launch),
+    plus DiscoAccess.Core. Runs on .NET 6 (BepInEx's bundled CoreCLR).
+    Referenced game/loader dlls are Private=false so they are never copied to our output.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <AssemblyName>DiscoAccess</AssemblyName>
+    <RootNamespace>DiscoAccess</RootNamespace>
+    <Nullable>disable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- Game/loader dlls are referenced directly; don't warn about their lack of XML docs etc. -->
+    <NoWarn>$(NoWarn);CS0436</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DiscoAccess.Core\DiscoAccess.Core.csproj" />
+  </ItemGroup>
+
+  <!--
+    Auto-deploy on build (Debug only): copy the plugin + Core dll into BepInEx/plugins/DiscoAccess and
+    prism.dll next to disco.exe, so a plain `dotnet build` is all that's needed. ContinueOnError keeps
+    a locked file (game running) a warning and lets the compile succeed; close the game and rebuild to deploy.
+  -->
+  <Target Name="DeployToGame" AfterTargets="Build" Condition="'$(Configuration)' == 'Debug'">
+    <PropertyGroup>
+      <PluginDeployDir>$(BepInExDir)\plugins\DiscoAccess</PluginDeployDir>
+    </PropertyGroup>
+    <MakeDir Directories="$(PluginDeployDir)" />
+    <Copy SourceFiles="$(TargetDir)DiscoAccess.dll;$(TargetDir)DiscoAccess.Core.dll"
+          DestinationFolder="$(PluginDeployDir)" ContinueOnError="true" />
+    <Copy SourceFiles="$(RepoRoot)third_party\prism\prism.dll"
+          DestinationFolder="$(GameDir)" SkipUnchangedFiles="true" ContinueOnError="true" />
+    <Message Importance="high" Text="DiscoAccess deployed -> $(PluginDeployDir)" />
+  </Target>
+
+  <ItemGroup>
+    <!-- BepInEx loader + Harmony + Il2CppInterop runtime (dobby.dll is native, skip it) -->
+    <Reference Include="$(BepInExDir)\core\*.dll" Exclude="$(BepInExDir)\core\dobby.dll">
+      <Private>false</Private>
+    </Reference>
+    <!-- Il2CppInterop proxy assemblies for the game + Unity -->
+    <Reference Include="$(InteropDir)\*.dll">
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,39 @@
+<Project>
+  <PropertyGroup>
+    <Version>0.1.0</Version>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <RepoRoot>$(MSBuildThisFileDirectory)</RepoRoot>
+  </PropertyGroup>
+
+  <!-- Optional machine-specific overrides (gitignored). Drop a GameDir here if auto-detect misses. -->
+  <Import Project="$(RepoRoot)Directory.Build.local.props" Condition="Exists('$(RepoRoot)Directory.Build.local.props')" />
+
+  <!--
+    Resolve the game install without committing a machine-specific path. Precedence:
+      1. -p:GameDir=... on the CLI, or GameDir in Directory.Build.local.props (imported above)
+      2. the DISCO_ELYSIUM_DIR environment variable
+      3. Steam's main library, located via the registry (Windows)
+      4. a couple of default install locations
+    For an install outside Steam's main library, set GameDir via the env var or local props.
+  -->
+  <PropertyGroup>
+    <GameDir Condition="'$(GameDir)' == '' and '$(DISCO_ELYSIUM_DIR)' != ''">$(DISCO_ELYSIUM_DIR)</GameDir>
+
+    <_SteamPath Condition="'$(GameDir)' == ''">$([MSBuild]::GetRegistryValueFromView('HKEY_CURRENT_USER\Software\Valve\Steam', 'SteamPath', null, RegistryView.Registry64, RegistryView.Registry32))</_SteamPath>
+    <_SteamPath Condition="'$(GameDir)' == '' and '$(_SteamPath)' == ''">$([MSBuild]::GetRegistryValueFromView('HKEY_LOCAL_MACHINE\SOFTWARE\Valve\Steam', 'InstallPath', null, RegistryView.Registry32, RegistryView.Registry64))</_SteamPath>
+    <_SteamGameDir Condition="'$(_SteamPath)' != ''">$([System.IO.Path]::GetFullPath($([System.IO.Path]::Combine('$(_SteamPath)', 'steamapps', 'common', 'Disco Elysium'))))</_SteamGameDir>
+    <GameDir Condition="'$(GameDir)' == '' and '$(_SteamGameDir)' != '' and Exists('$(_SteamGameDir)')">$(_SteamGameDir)</GameDir>
+
+    <GameDir Condition="'$(GameDir)' == '' and Exists('C:\Program Files (x86)\Steam\steamapps\common\Disco Elysium')">C:\Program Files (x86)\Steam\steamapps\common\Disco Elysium</GameDir>
+
+    <BepInExDir>$(GameDir)\BepInEx</BepInExDir>
+    <InteropDir>$(BepInExDir)\interop</InteropDir>
+  </PropertyGroup>
+
+  <!-- Only the plugin needs the game; warn there if detection failed or the game hasn't been launched. -->
+  <Target Name="_CheckGameDir" BeforeTargets="ResolveAssemblyReferences"
+          Condition="'$(MSBuildProjectName)' == 'DiscoAccess' and ('$(GameDir)' == '' or !Exists('$(InteropDir)'))">
+    <Warning Text="Game not found. GameDir='$(GameDir)'. Set DISCO_ELYSIUM_DIR, pass -p:GameDir=..., or create Directory.Build.local.props; and launch the game once through Steam so BepInEx/interop exists." />
+  </Target>
+</Project>

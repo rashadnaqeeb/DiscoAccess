@@ -1,0 +1,7 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/DiscoAccess.Core/DiscoAccess.Core.csproj" />
+    <Project Path="src/DiscoAccess.Tests/DiscoAccess.Tests.csproj" />
+    <Project Path="src/DiscoAccess/DiscoAccess.csproj" />
+  </Folder>
+</Solution>

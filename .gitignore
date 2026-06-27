@@ -1,0 +1,27 @@
+# --- Decompiled game source: REFERENCE ONLY, never commit ---
+# Large, copyrighted ZAUM/Unity code regenerated from the install with Cpp2IL + ilspy.
+# Reproduce with tools/Cpp2IL.exe (see third_party / docs). Do not track.
+/decompiled/
+
+# --- Build outputs ---
+[Bb]in/
+[Oo]bj/
+/release/
+/dist/
+*.dll.mdb
+*.pdb
+
+# --- Machine-specific build overrides ---
+Directory.Build.local.props
+
+# --- IDE / editor ---
+.vs/
+.idea/
+*.user
+*.suo
+*.userprefs
+
+# --- OS cruft ---
+Thumbs.db
+desktop.ini
+.DS_Store
