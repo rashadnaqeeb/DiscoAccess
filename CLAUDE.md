@@ -50,33 +50,65 @@ copies `DiscoAccess.dll` + `DiscoAccess.Core.dll` into `<GameDir>\BepInEx\plugin
 the dll copy is skipped (file locked) and you'll run a stale build. `build.ps1` is just a wrapper for
 `dotnet build`; deploy is automatic.
 
-- `dotnet build DiscoAccess.slnx -c Debug` - build all three projects and deploy.
+- `dotnet build DiscoAccess.slnx -c Debug` - build all four projects and deploy.
 - `dotnet test DiscoAccess.slnx` - run the unit suite (Core only; no game, no Unity).
 - `dotnet build -c Release` compiles without deploying.
+
+**Dev loop (in-process HTTP server + hot-reload).** A loopback dev server runs on `127.0.0.1:8771`
+by default (off with `DISCOACCESS_NO_DEV=1`, port via `DISCOACCESS_DEV_PORT`), exposing `POST /eval`
+(live Roslyn C# REPL against game types; state persists across calls), `GET /speech?since=N` (read
+back what the mod spoke), `GET /focus` (the current uGUI selection, independent of speech, works even
+if the module is broken), `POST /input` (up|down|left|right move + select via `NavigationManager`,
+confirm via `NavigationManager.Submit()`, back via the active Sunshine `View.CloseOnEscapeKey()` -
+all the game's own logical handlers, never OS synthetic keys, which a backgrounded window can't take),
+`GET /screenshot`, `GET /health`, and `POST /reload`. The hot loop for feature code, no game restart:
+edit `DiscoAccess.Module`, `dotnet build src/DiscoAccess.Module/DiscoAccess.Module.csproj` (its
+`DeployModule` target copies just the unlocked module DLL), then `curl -X POST .../reload` or press
+**F6** in-game. The host reloads the module from its DLL bytes; the socket, Prism, and REPL stay live.
+Host code changes still need a restart (close the game first, since the host DLLs are then locked).
+
+The REPL is Roslyn, not Mono.CSharp (whose Reflection.Emit codegen calls net4x AppDomain overloads
+the CoreCLR runtime removed, so it throws on every eval). Roslyn's deps (Microsoft.CodeAnalysis.\*,
+System.Collections.Immutable/Reflection.Metadata 7.0) deploy beside the plugin and load fine on
+BepInEx's CoreCLR.
 
 After a game update, relaunch once through Steam to regenerate `BepInEx/interop/`, and re-dump
 `decompiled/` with Cpp2IL.
 
 ## Architecture
 
-Three projects, the Hand-of-Fate split adapted to IL2CPP:
+Four projects, the Hand-of-Fate split adapted to IL2CPP, with the engine-coupled side split again
+into a permanent host and a reloadable module so feature code can hot-reload (see Dev loop above):
 
 - **`DiscoAccess.Core`** (netstandard2.0) - engine-agnostic logic: the speech pipeline, text filter,
-  announcement composition, the authored-strings table. References nothing external (no Unity, no
-  BepInEx) so it stays unit-testable off-engine. If a piece of code decides what words the user hears,
-  it belongs here.
-- **`DiscoAccess`** (net6.0) - the BepInEx plugin: engine + native glue only (the plugin entry, the
-  Prism P/Invoke + backend, the per-frame pump, and thin adapters that read live UI/world state). If a
-  piece of code pulls a value off a label or game object, it belongs here.
+  announcement composition, the authored-strings table, and the `IModHost`/`IModModule` contracts.
+  References nothing external (no Unity, no BepInEx) so it stays unit-testable off-engine, and it loads
+  in the default load context so host and module agree on the contract type identity. If a piece of
+  code decides what words the user hears, it belongs here.
+- **`DiscoAccess`** (net6.0) - the permanent host: only what can never reload. The BepInEx `BasePlugin`
+  entry, the Prism P/Invoke + backend, the one injected MonoBehaviour pump (`HostPump`; IL2CPP type
+  registration is permanent for the process), the dev HTTP server + Mono.CSharp REPL, and the module
+  loader. Changing host code needs a game restart, so keep it minimal.
+- **`DiscoAccess.Module`** (net6.0) - the reloadable module: the adapters/readers/announcers and any
+  Harmony patches. Implements `IModModule`, driven by the host's pump. Injects **no** IL2CPP types and
+  owns no native handles. **This is where day-to-day feature work goes** - it reloads with no restart.
+  The host loads it from the DLL bytes into a collectible `AssemblyLoadContext`.
 - **`DiscoAccess.Tests`** (net8.0 + xUnit) - references Core only. No Unity, no game launch.
 
+**Permanent vs reloadable rule.** New feature/adapter/reader/patch code goes in `DiscoAccess.Module`.
+Only entry, native (Prism/P-Invoke), socket-owning, or IL2CPP-type-injecting code goes in the host.
+A module must never call `ClassInjector.RegisterTypeInIl2Cpp` (permanent for the process) and must
+own no native handle, or it can't be torn down on reload. Module-owned Harmony uses a per-load
+`new Harmony(id)` and `UnpatchSelf()` in `Dispose` so a reload cleanly unpatches.
+
 **Adapter / composition split.** Reading live game state touches Unity and lives in a thin adapter in
-the plugin that extracts raw state into plain data (no Unity types past the boundary) and does no
+the module that extracts raw state into plain data (no Unity types past the boundary) and does no
 formatting. The announcement is composed from that data by Core, which is unit-tested.
 
 **Announce from the pump.** A hook (Harmony patch, event) records state or sets a dirty flag; the
-per-frame pump reads that and speaks, so announcements happen once per frame in one place. (Behavioral
-speech/state/announcement rules are under Conventions below.)
+host pump drives the module's `Tick()` each frame, which reads that and speaks, so announcements
+happen once per frame in one place. (Behavioral speech/state/announcement rules are under Conventions
+below.)
 
 ## Conventions & invariants
 

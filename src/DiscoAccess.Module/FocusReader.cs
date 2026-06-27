@@ -2,7 +2,7 @@ using System.Text;
 using TMPro;
 using UnityEngine.UI;
 
-namespace DiscoAccess.Ui
+namespace DiscoAccess.Module
 {
     /// <summary>
     /// Adapter: pulls the raw text off a focused Selectable by reading the TextMeshPro labels on it

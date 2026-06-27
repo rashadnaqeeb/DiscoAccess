@@ -8,5 +8,6 @@ namespace DiscoAccess.Core.Strings
     public static class Strings
     {
         public const string ModLoaded = "Disco Elysium access loaded";
+        public const string ModuleFailed = "DiscoAccess features failed to load";
     }
 }

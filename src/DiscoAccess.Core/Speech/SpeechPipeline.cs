@@ -1,3 +1,4 @@
+using System;
 using DiscoAccess.Core.Text;
 
 namespace DiscoAccess.Core.Speech
@@ -12,6 +13,13 @@ namespace DiscoAccess.Core.Speech
     {
         /// <summary>Set once by the plugin at load; null in unit tests that construct their own.</summary>
         public static SpeechPipeline? Instance { get; set; }
+
+        /// <summary>
+        /// Optional tap invoked with (text, interrupt) for every line that clears the clean/dedup gate,
+        /// so it sees exactly what was voiced. The dev server sets this to read spoken text back (it
+        /// can't hear the TTS). Null in normal play and in unit tests.
+        /// </summary>
+        public static Action<string, bool>? Spoken;
 
         private const double DedupWindowSeconds = 0.5;
 
@@ -45,6 +53,7 @@ namespace DiscoAccess.Core.Speech
             _lastText = clean;
             _lastTime = now;
             _backend.Speak(clean, interrupt);
+            Spoken?.Invoke(clean, interrupt);
         }
 
         public void Stop()

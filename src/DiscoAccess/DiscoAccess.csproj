@@ -14,24 +14,53 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <!-- Game/loader dlls are referenced directly; don't warn about their lack of XML docs etc. -->
     <NoWarn>$(NoWarn);CS0436</NoWarn>
+    <!-- Copy NuGet runtime assemblies (Roslyn scripting, the dev /eval REPL) into the build output so
+         DeployToGame can ship them next to the plugin. The game/loader refs are Private=false. -->
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\DiscoAccess.Core\DiscoAccess.Core.csproj" />
+    <!-- The reloadable module. ReferenceOutputAssembly=false: the host loads it by hand (reflection)
+         and never references its types at compile time; this entry only forces it to build before the
+         host so DeployToGame can copy its DLL. -->
+    <ProjectReference Include="..\DiscoAccess.Module\DiscoAccess.Module.csproj">
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+      <Private>false</Private>
+    </ProjectReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- In-process C# REPL for the dev /eval server (Roslyn scripting; runs on CoreCLR, unlike
+         Mono.CSharp whose Reflection.Emit codegen needs the removed net4x AppDomain overloads).
+         Shipped beside the plugin via DeployToGame (it and its deps land in the output by
+         CopyLocalLockFileAssemblies). -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Scripting" Version="4.8.0" />
   </ItemGroup>
 
   <!--
-    Auto-deploy on build (Debug only): copy the plugin + Core dll into BepInEx/plugins/DiscoAccess and
-    prism.dll next to disco.exe, so a plain `dotnet build` is all that's needed. ContinueOnError keeps
-    a locked file (game running) a warning and lets the compile succeed; close the game and rebuild to deploy.
+    Auto-deploy on build (Debug only): copy the host + Core + Roslyn deps (everything in the output:
+    the game/loader refs are Private=false so they never land there) plus the module DLL into
+    BepInEx/plugins/DiscoAccess, and prism.dll next to disco.exe, so a plain `dotnet build` is all
+    that's needed. ContinueOnError keeps a locked file (game running) a warning and lets the compile
+    succeed; close the game and rebuild to deploy. The module DLL is overwrite-safe at runtime (the
+    host loads it from bytes, leaving the file unlocked); BepInEx's chainloader ignores it since it
+    carries no [BepInPlugin].
   -->
   <Target Name="DeployToGame" AfterTargets="Build" Condition="'$(Configuration)' == 'Debug'">
     <PropertyGroup>
       <PluginDeployDir>$(BepInExDir)\plugins\DiscoAccess</PluginDeployDir>
+      <ModuleDll>$(RepoRoot)src\DiscoAccess.Module\bin\$(Configuration)\$(TargetFramework)\DiscoAccess.Module.dll</ModuleDll>
     </PropertyGroup>
+    <ItemGroup>
+      <_DeployDll Include="$(TargetDir)*.dll" />
+    </ItemGroup>
     <MakeDir Directories="$(PluginDeployDir)" />
-    <Copy SourceFiles="$(TargetDir)DiscoAccess.dll;$(TargetDir)DiscoAccess.Core.dll"
-          DestinationFolder="$(PluginDeployDir)" ContinueOnError="true" />
+    <!-- Retries=0: when iterating with the game running, the host/Roslyn DLLs are locked; fail fast
+         to one warning each instead of MSBuild's default 10x1s retry storm. (Use the module's own
+         DeployModule for the hot loop; this full copy is for closed-game / first deploys.) -->
+    <Copy SourceFiles="@(_DeployDll);$(ModuleDll)"
+          DestinationFolder="$(PluginDeployDir)" ContinueOnError="true" Retries="0" />
     <Copy SourceFiles="$(RepoRoot)third_party\prism\prism.dll"
           DestinationFolder="$(GameDir)" SkipUnchangedFiles="true" ContinueOnError="true" />
     <Message Importance="high" Text="DiscoAccess deployed -> $(PluginDeployDir)" />
