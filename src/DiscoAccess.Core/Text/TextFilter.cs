@@ -25,6 +25,7 @@ namespace DiscoAccess.Core.Text
             string s = RichTags.Replace(raw, string.Empty);
             s = s.Replace(' ', ' ');   // non-breaking space
             s = s.Replace('​', ' ');   // zero-width space TMP sometimes injects
+            s = FoldPunctuation(s);
             s = s.Trim();
             // A line break in multi-line game text (e.g. an options tooltip listing modes on separate
             // lines) becomes a sentence break so it reads with a pause. When the line already ends with
@@ -33,6 +34,25 @@ namespace DiscoAccess.Core.Text
             s = LineBreak.Replace(s, " ");
             s = Whitespace.Replace(s, " ").Trim();
             return s;
+        }
+
+        // Fold the Unicode typographic punctuation common in game text (smart dashes, curly quotes,
+        // ellipsis) to plain ASCII. Besides reading more cleanly, this is required for the line to be
+        // spoken at all: the Prism backend rejects some valid multi-byte UTF-8 as InvalidUtf8 depending
+        // on the byte offset of the multi-byte character, dropping the whole line, so a description with
+        // an en dash (Drama's "Lie - and detect lies.") goes silent. ASCII text never trips that.
+        private static string FoldPunctuation(string s)
+        {
+            s = s.Replace('–', '-')   // en dash
+                 .Replace('—', '-')   // em dash
+                 .Replace('―', '-')   // horizontal bar
+                 .Replace('‒', '-')   // figure dash
+                 .Replace('−', '-')   // minus sign
+                 .Replace('‘', '\'')  // left single quote
+                 .Replace('’', '\'')  // right single quote / apostrophe
+                 .Replace('“', '"')   // left double quote
+                 .Replace('”', '"');  // right double quote
+            return s.Replace("…", "...");  // ellipsis
         }
     }
 }

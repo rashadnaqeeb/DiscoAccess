@@ -51,5 +51,24 @@ namespace DiscoAccess.Tests
             Assert.Equal("Full, all voiced. Psychological, except narration. Classic, intros only",
                 TextFilter.Clean("Full, all voiced\nPsychological, except narration\nClassic, intros only"));
         }
+
+        // Prism rejects some valid multi-byte UTF-8 as InvalidUtf8 by byte position, dropping the whole
+        // line; folding typographic punctuation to ASCII keeps every line speakable (Drama's en dash).
+        [Theory]
+        [InlineData("Play the actor. Lie – and detect lies.", "Play the actor. Lie - and detect lies.")]
+        [InlineData("dramatic — pause", "dramatic - pause")]
+        [InlineData("it’s a “quote”", "it's a \"quote\"")]
+        [InlineData("wait… stop", "wait... stop")]
+        public void Clean_FoldsTypographicPunctuationToAscii(string input, string expected)
+        {
+            Assert.Equal(expected, TextFilter.Clean(input));
+        }
+
+        [Fact]
+        public void Clean_FoldedTextIsPureAscii()
+        {
+            string cleaned = TextFilter.Clean("smart – — ‘ ’ “ ” …");
+            Assert.All(cleaned, c => Assert.True(c < 128, $"non-ASCII char U+{(int)c:X4} survived"));
+        }
     }
 }

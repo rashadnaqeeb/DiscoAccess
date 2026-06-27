@@ -70,7 +70,9 @@ namespace DiscoAccess.Speech
                 return;
             try
             {
-                PrismNative.BackendOutput(_backend, text, interrupt);
+                var err = PrismNative.BackendOutput(_backend, text, interrupt);
+                if (err != PrismNative.PrismError.Ok)
+                    _log.LogWarning($"Prism: output returned {err}, line not spoken: {text}");
             }
             catch (Exception ex)
             {
