@@ -73,10 +73,10 @@ namespace DiscoAccess.Core.UI
             return Step(s.StepIndex + 1, s.StepCount);
         }
 
-        private static string Join(params string[] parts)
+        private static string Join(params string?[] parts)
         {
             var sb = new StringBuilder();
-            foreach (string part in parts)
+            foreach (string? part in parts)
             {
                 if (string.IsNullOrEmpty(part))
                     continue;

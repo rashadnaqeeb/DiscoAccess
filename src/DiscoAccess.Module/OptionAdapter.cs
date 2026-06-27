@@ -2,7 +2,6 @@ using System.Text.RegularExpressions;
 using DiscoAccess.Core.Strings;
 using DiscoAccess.Core.UI;
 using LocalizationCustomSystem;
-using Sunshine.Views;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -14,8 +13,7 @@ namespace DiscoAccess.Module
     /// compose. Reads live component state only (never caches game data) and does no word choice. An
     /// options control is any focusable carrying an <see cref="OptionSelectableController"/>; its label
     /// resolves per kind (a toggle's name is a child "Label", a slider's or dropdown's is the sibling
-    /// row "Label", because a dropdown's own child "Label" holds its value, not its name). Tab state is
-    /// read off the <see cref="SettingsHeaderController"/> singleton.
+    /// row "Label", because a dropdown's own child "Label" holds its value, not its name).
     /// </summary>
     public static class OptionAdapter
     {
@@ -227,28 +225,6 @@ namespace DiscoAccess.Module
         private static string CleanName(string name)
         {
             return CamelBoundary.Replace(name, "$1 $2");
-        }
-
-        /// <summary>
-        /// The active options tab's localized name ("Settings"/"Controls"), or null when the options
-        /// screen is not the shown view. Gated on the view system's current view (not just the header's
-        /// active state, which flashes true for a frame during main-menu init); the header's two views
-        /// then say which tab is up.
-        /// </summary>
-        public static string ActiveTabName()
-        {
-            if (ViewsPagesBridge.Current != ViewType.OPTIONS)
-                return null;
-
-            var header = SettingsHeaderController.singleton;
-            if (header == null)
-                return null;
-
-            if (header.settingsView != null && header.settingsView.activeInHierarchy)
-                return header.settingsText != null ? header.settingsText.text : null;
-            if (header.controlsView != null && header.controlsView.activeInHierarchy)
-                return header.controlsText != null ? header.controlsText.text : null;
-            return null;
         }
     }
 }

@@ -68,8 +68,9 @@ namespace DiscoAccess.Dev
             if (!string.IsNullOrEmpty(p))
                 int.TryParse(p, out port);
 
-            // Tap every line the mod speaks (single chokepoint) into the ring buffer.
-            SpeechPipeline.Spoken = (text, interrupt) => _speech.Add(text);
+            // Tap every line the mod speaks (single chokepoint) into the ring buffer, tagging whether it
+            // interrupted or queued so the dev driver can see speech policy it can't hear.
+            SpeechPipeline.Spoken = (text, interrupt) => _speech.Add((interrupt ? "[interrupt] " : "[queue] ") + text);
 
             try
             {
