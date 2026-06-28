@@ -47,7 +47,14 @@ namespace DiscoAccess.Module.Nav
                 if (!child.gameObject.activeInHierarchy) continue;
                 var selectable = child.GetComponent<Selectable>();
                 if (selectable == null || !selectable.interactable) continue;
-                list.Add(new SelectableButton(selectable));
+                // Collage opens DE's screenshot composition canvas, a visual screen with no accessible
+                // path, so it is the one button we navigate to but refuse to open. A menu button knows the
+                // view it opens via RelatedViewType; the Collage entry's is COLLAGEMODE.
+                var menuButton = child.GetComponent<MainMenuButton>();
+                if (menuButton != null && menuButton.RelatedViewType == ViewType.COLLAGEMODE)
+                    list.Add(new BlockedButton(selectable, host, Strings.CollageInaccessible));
+                else
+                    list.Add(new SelectableButton(selectable));
             }
             return list;
         }

@@ -99,6 +99,11 @@ namespace DiscoAccess.Core.Strings
         public const string ScreenThought = "thought";
         public const string ScreenCollage = "collage mode";
 
+        // Spoken when the player activates the main menu's Collage button. Collage is DE's screenshot
+        // composition mode, a visual canvas with no accessible path; our navigator blocks the open and
+        // says why rather than dropping the player into an unreadable screen.
+        public const string CollageInaccessible = "Collage is a screenshot mode and is not accessible.";
+
         // The language the player taps Q/L to switch to in play (the game's internal "switchable"
         // language). It is drawn under the shared LANGUAGE header with no label of its own, so authored.
         public const string SecondaryLanguage = "secondary language";
