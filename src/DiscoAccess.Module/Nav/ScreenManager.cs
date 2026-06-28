@@ -30,10 +30,15 @@ namespace DiscoAccess.Module.Nav
     {
         private readonly IModHost _host;
         private readonly TraditionalNavigator _nav;
-        private readonly Dictionary<ViewType, Screen> _screens = new Dictionary<ViewType, Screen>();
+        // Resolved in registration order: the first screen whose ViewType matches and whose AppliesNow is
+        // true wins, so a more specific screen (the pause menu) is registered before its fallback (the
+        // title menu), which share a ViewType.
+        private readonly List<Screen> _screens = new List<Screen>();
 
-        private ViewType _attachedView;
-        private bool _haveAttached;
+        // The screen our navigator is currently attached to (null when detached). Tracked as the instance,
+        // not just its ViewType, so switching between two screens that share a ViewType (the title menu and
+        // the in-game pause menu, both MAINMENU) rebuilds and re-announces.
+        private Screen _attachedScreen;
         // Whether we drove (owned the keyboard) last frame, so the lever is restored exactly once when we
         // stop driving rather than forced every frame (which would fight a lock the game itself set).
         private bool _wasOwning;
@@ -46,6 +51,9 @@ namespace DiscoAccess.Module.Nav
         // Whether the "not ready yet" throw has been logged once, so the boot transient surfaces but does
         // not spam every frame until the view system is up.
         private bool _warnedNotReady;
+        // The screen whose build last threw, so the failure is logged once rather than every frame while
+        // the broken screen stays up. Cleared on any successful build.
+        private Screen _buildFailed;
 
         /// <summary>Whether our navigator is driving a registered screen this frame (lever taken). Set by
         /// <see cref="Tick"/> before input is polled, so the input layer can gate UI keys on it.</summary>
@@ -60,19 +68,41 @@ namespace DiscoAccess.Module.Nav
         {
             _host = host;
             _nav = new TraditionalNavigator((text, interrupt) => _host.Speech.Speak(text, interrupt));
+            // PauseMenuScreen before MainMenuScreen: both are MAINMENU, and the pause menu is the more
+            // specific match (the title menu is the fallback).
+            Register(new PauseMenuScreen());
             Register(new MainMenuScreen());
             Register(new OptionsScreen());
+            Register(new LoadGameScreen());
+            Register(new SaveGameScreen());
         }
 
-        private void Register(Screen screen) => _screens[screen.ViewType] = screen;
+        private void Register(Screen screen) => _screens.Add(screen);
+
+        // The screen for this view: first registered whose ViewType matches and which applies now.
+        private Screen Resolve(ViewType view)
+        {
+            foreach (Screen s in _screens)
+                if (s.ViewType == view && s.AppliesNow())
+                    return s;
+            return null;
+        }
 
         /// <summary>Route a fired UI action into the navigator. Returns whether it was consumed.</summary>
         public bool Dispatch(string actionKey) => _nav.Handle(actionKey);
 
+        /// <summary>Re-enable the game's input for now, so an Escape our navigator did not consume (a screen
+        /// with no Back of its own, like the title menu) reaches the game's own Escape handling - nothing at
+        /// the title, resume in the pause menu. We never swallow Escape into a silent no-op the game would
+        /// have acted on. Reasserted (re-disabled) next Tick while we still own the screen, so this is a
+        /// one-frame hand-back, not a release.</summary>
+        public void DeferEscapeToGame() => InControl.InputManager.Enabled = true;
+
         /// <summary>Resolve the active screen and set keyboard ownership for this frame. Call before
         /// polling input. <paramref name="suppressed"/> forces the keyboard back to the game even on a
-        /// registered screen (a modal popup is up and owns the frame).</summary>
-        public void Tick(bool suppressed)
+        /// registered screen (a modal popup is up and owns the frame). <paramref name="editEnded"/> means a
+        /// text edit just committed, so the standing screen re-reads the focused control once.</summary>
+        public void Tick(bool suppressed, bool editEnded)
         {
             bool wasSuppressed = _wasSuppressed;
             _wasSuppressed = suppressed;
@@ -82,12 +112,13 @@ namespace DiscoAccess.Module.Nav
                 // The view system is not ready yet (early boot): leave the game its input and detach.
                 ViewReady = false;
                 OwnsKeyboard = false;
-                if (_haveAttached) { _nav.Attach(null); _haveAttached = false; }
+                if (_attachedScreen != null) { _nav.Attach(null); _attachedScreen = null; }
                 return;
             }
             ViewReady = true;
 
-            bool registered = _screens.ContainsKey(view);
+            Screen screen = Resolve(view);
+            bool registered = screen != null;
             bool own = registered && !suppressed;
 
             // Take the lever only while we actively drive, reasserted each frame (the game re-enables
@@ -103,32 +134,54 @@ namespace DiscoAccess.Module.Nav
             {
                 // Detach only when leaving a registered screen entirely, not for a transient popup over
                 // one: keeping the tree and remembered focus lets the screen resume when the popup closes.
-                if (!registered && _haveAttached)
+                if (!registered && _attachedScreen != null)
                 {
                     _nav.Attach(null);
-                    _haveAttached = false;
+                    _attachedScreen = null;
                 }
                 return;
             }
 
-            Screen screen = _screens[view];
-            if (_haveAttached && view == _attachedView)
+            if (screen == _attachedScreen)
             {
-                // A modal popup just closed over this screen: re-announce where focus is, since the popup
-                // left our navigator's focus untouched but the user heard only the popup.
-                if (wasSuppressed)
+                // Refresh the screen's dynamic content FIRST (a rich screen may rebuild its tree and re-home
+                // focus), THEN announce once. Announcing after the update means we read the live focus, not a
+                // cell the rebuild just destroyed, and the single announce avoids double-speaking. Speak when:
+                // a modal popup just closed over us (focus untouched but unheard), a text edit just committed
+                // (hear the result and landing), or the update re-homed focus this frame.
+                bool refocused = screen.OnUpdate(_host, _nav);
+                if (wasSuppressed || editEnded || refocused)
                     _nav.AnnounceCurrent();
-                screen.OnUpdate(_host, _nav); // a rich screen refreshes its dynamic content
                 return;
             }
 
-            // Build and announce first, then record the attach: if BuildRoot/Speak throws, the flags stay
-            // unset so the next frame retries instead of stranding the screen as permanently "attached".
-            _nav.Attach(screen.BuildRoot(_host));
-            _host.Speech.Speak(screen.ScreenName, interrupt: true); // supersedes; the landing queues behind
-            _nav.AnnounceCurrent();
-            _attachedView = view;
-            _haveAttached = true;
+            // Build, announce, then record the attach. A BuildRoot throw is the dangerous case: we have
+            // already taken the lever (InControl is off), so an uncaught throw would leave a keyboard-only
+            // player with the game muted and our navigator never built - a dead keyboard. Catch it, hand the
+            // keyboard back, and detach, so the broken screen falls back to the game's own input. (A screen
+            // with no Back is fine to own - the title menu has none by design; an unconsumed Escape there is
+            // handed back to the game by the pump, see DeferEscapeToGame.)
+            try
+            {
+                _nav.Attach(screen.BuildRoot(_host));
+                _host.Speech.Speak(screen.ScreenName, interrupt: true); // supersedes; the landing queues behind
+                _nav.AnnounceCurrent();
+                _attachedScreen = screen;
+                _buildFailed = null;
+            }
+            catch (System.Exception e)
+            {
+                if (_buildFailed != screen)
+                {
+                    _host.LogError($"ScreenManager: building {screen.GetType().Name} failed; handing the keyboard back to the game. {e}");
+                    _buildFailed = screen;
+                }
+                InControl.InputManager.Enabled = true;
+                _wasOwning = false;
+                OwnsKeyboard = false;
+                _nav.Attach(null);
+                _attachedScreen = null;
+            }
         }
 
         // Read the current view, treating the early-boot "not ready yet" throw as a transient (silent, the
@@ -162,7 +215,7 @@ namespace DiscoAccess.Module.Nav
         {
             InControl.InputManager.Enabled = true;
             _nav.Attach(null);
-            _haveAttached = false;
+            _attachedScreen = null;
             _wasOwning = false;
             OwnsKeyboard = false;
         }

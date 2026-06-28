@@ -43,11 +43,26 @@ namespace DiscoAccess.Core.UI.Nav
         {
             if (Root == null) return false;
             UIElement? cur = Current;
-            bool orphaned = cur != null && cur.Parent != null && !cur.Parent.Contains(cur);
-            if (cur != null && !orphaned) return false;
+            if (cur != null && !IsOrphaned(cur)) return false;
             Path.Clear();
             BuildInitialFocus();
             return true;
+        }
+
+        // Focus is orphaned if the chain from the focused leaf up to the root is broken at ANY link, not
+        // just the first: a rebuild can swap a whole nested subtree (e.g. the options screen replaces its
+        // inner list), leaving the leaf's immediate parent still listing it while an ancestor higher up no
+        // longer does. Walk every link to the root.
+        private bool IsOrphaned(UIElement leaf)
+        {
+            UIElement node = leaf;
+            while (node != Root)
+            {
+                Container? parent = node.Parent;
+                if (parent == null || !parent.Contains(node)) return true;
+                node = parent;
+            }
+            return false;
         }
 
         /// <summary>Handle a semantic UI action (a <see cref="UiActions"/> key). Returns true if consumed.</summary>

@@ -63,10 +63,62 @@ namespace DiscoAccess.Core.UI.Nav
             if (dir == NavDirection.Right && Current.InvokeAction(ActionIds.Increase))
             { Speak(Current.GetValueText(), interrupt: true); return true; }
 
+            // A grid moves a 2-D cell cursor and announces only the axis that changed.
+            if (Current.Parent is Grid grid) return GridArrow(dir, grid);
+
             var snapshot = new List<UIElement>(Path);
             if (!Move(dir)) return false;
             AnnounceDelta(snapshot, interrupt: true);
             return true;
+        }
+
+        // Move the cell cursor in a grid and announce Excel-style: the column header when the column
+        // changed, the row text when the row changed, then the cell's own value if any. A non-focusable
+        // cell (e.g. a non-deletable save's Delete) is scanned past in the move direction; running off the
+        // grid consumes the key without wrapping.
+        private bool GridArrow(NavDirection dir, Grid grid)
+        {
+            if (!grid.TryCoords(Current!, out int r, out int c)) return false;
+            int nr = r, nc = c;
+            UIElement? next = null;
+            while (true)
+            {
+                switch (dir)
+                {
+                    case NavDirection.Down: nr++; break;
+                    case NavDirection.Up: nr--; break;
+                    case NavDirection.Right: nc++; break;
+                    case NavDirection.Left: nc--; break;
+                }
+                var cell = grid.CellAt(nr, nc);
+                if (cell == null) return true; // off the edge: consume, no wrap
+                if (cell.CanFocus) { next = cell; break; }
+            }
+
+            LandOnCell(next, announceColumn: nc != c, announceRow: nr != r);
+            return true;
+        }
+
+        // Move focus onto a grid cell and announce Excel-style: only the axis text the caller says changed
+        // (the column header on a column move, the row text on a row move), falling back to the cell's full
+        // focus text if neither axis has anything to say. Then sync the platform cursor. Shared by the grid
+        // arrow and Home/End jumps so they land and read consistently.
+        private void LandOnCell(UIElement cell, bool announceColumn, bool announceRow)
+        {
+            BuildPathTo(cell);
+            var parts = new List<string>(2);
+            if (cell is GridCell gc)
+            {
+                if (announceColumn && !string.IsNullOrEmpty(gc.ColumnHeader)) parts.Add(gc.ColumnHeader!);
+                if (announceRow && !string.IsNullOrEmpty(gc.RowText)) parts.Add(gc.RowText!);
+            }
+            if (parts.Count == 0)
+            {
+                var text = cell.GetFocusText();
+                if (!string.IsNullOrEmpty(text)) parts.Add(text);
+            }
+            if (parts.Count > 0) Speak(string.Join(", ", parts), interrupt: true);
+            cell.OnFocused();
         }
 
         // Arrow movement within list-shaped containers, spilling into a same-shape parent at the edge.
@@ -124,6 +176,26 @@ namespace DiscoAccess.Core.UI.Nav
         private bool JumpEdge(bool first)
         {
             var container = Current?.Parent;
+
+            // In a grid, jump to the first/last focusable cell of the current column (only the row
+            // changes, so just the row text is announced).
+            if (container is Grid grid)
+            {
+                if (!grid.TryCoords(Current!, out _, out int col)) return true;
+                int step = first ? 1 : -1;
+                int start = first ? 0 : grid.RowCount - 1;
+                UIElement? edge = null;
+                for (int rr = start; rr >= 0 && rr < grid.RowCount; rr += step)
+                {
+                    var cell = grid.CellAt(rr, col);
+                    if (cell != null && cell.CanFocus) { edge = cell; break; }
+                }
+                if (edge == null || edge == Current) return true;
+                // A Home/End jump stays in the column, so only the row changed: announce just the row text.
+                LandOnCell(edge, announceColumn: false, announceRow: true);
+                return true;
+            }
+
             if (container == null
                 || (container.Shape != ContainerShape.VerticalList && container.Shape != ContainerShape.HorizontalList))
                 return true; // focused but in no jumpable list - consume, do nothing

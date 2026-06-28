@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using DiscoAccess.Core.Modularity;
 using DiscoAccess.Core.Strings;
 using DiscoAccess.Core.UI.Nav;
@@ -32,7 +31,7 @@ namespace DiscoAccess.Module.Nav
 
         public override Container BuildRoot(IModHost host)
         {
-            var root = new OptionsRoot();
+            var root = new ScreenRoot();
 
             var h = SettingsHeaderController.singleton;
             if (h == null)
@@ -71,20 +70,22 @@ namespace DiscoAccess.Module.Nav
             return root;
         }
 
-        public override void OnUpdate(IModHost host, TraditionalNavigator nav)
+        public override bool OnUpdate(IModHost host, TraditionalNavigator nav)
         {
             var h = SettingsHeaderController.singleton;
             if (h == null || _content == null)
-                return;
+                return false;
             // A tab switch swaps which subview is active; refill the content panel to match. You normally
             // switch from the tab list, so focus survives; but an outside switch (a mouse click, which the
-            // lever does not mute) can orphan the focused control, so re-home and re-announce if so.
-            if (h.settingsView.activeInHierarchy != _builtSettings)
-            {
-                RebuildContent(host, h);
-                if (nav.EnsureFocusValid())
-                    nav.AnnounceCurrent();
-            }
+            // lever does not mute) can orphan the focused control, so re-home. The ScreenManager announces
+            // the landing once after this returns.
+            if (h.settingsView.activeInHierarchy == _builtSettings)
+                return false;
+            RebuildContent(host, h);
+            // Re-home only if the switch orphaned focus (an outside switch while focus was inside the
+            // content); switching from the tab list leaves focus on the tab, which the arrow move already
+            // announced. The result tells the ScreenManager whether to announce the new landing.
+            return nav.EnsureFocusValid();
         }
 
         private void RebuildContent(IModHost host, SettingsHeaderController h)
@@ -145,29 +146,6 @@ namespace DiscoAccess.Module.Nav
                 return null;
             Transform reset = t.Find("Content/ResetSettings");
             return reset != null ? reset.GetComponent<Selectable>() : null;
-        }
-
-        // The screen root: a Panel that advertises Back so Escape closes the options screen the game's own
-        // way (the active View's CloseOnEscapeKey, what the Escape key triggers for that view).
-        private sealed class OptionsRoot : Container
-        {
-            public OptionsRoot() : base(ContainerShape.Panel) { }
-
-            public override IEnumerable<ElementAction> GetActions()
-            {
-                yield return new ElementAction(ActionIds.Back, Close);
-            }
-
-            private static void Close()
-            {
-                ViewType current = ViewsPagesBridge.Current;
-                foreach (View v in Object.FindObjectsOfType<View>())
-                    if (v.GetViewType() == current)
-                    {
-                        v.CloseOnEscapeKey();
-                        return;
-                    }
-            }
         }
     }
 }

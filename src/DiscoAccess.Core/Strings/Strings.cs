@@ -31,6 +31,15 @@ namespace DiscoAccess.Core.Strings
         // Marks the tab whose content is currently shown (the options screen's Settings/Controls tabs).
         public const string StatusSelected = "selected";
 
+        // Marks the save menu's create-new slot, so activating it reads as a new save, not an overwrite.
+        public const string StatusNewSave = "new save";
+
+        // The save menu's rename column. The action has no game button to read a caption from (editing is
+        // triggered by clicking the entry), so its label is authored; activating it puts the save-name
+        // field into edit mode, announced with StatusEditMode, after which regular typing fills it.
+        public const string ActionRename = "rename";
+        public const string StatusEditMode = "edit mode";
+
         // Readable key names for the options Controls tab, which draws each key as an icon image with no
         // text. Only keys whose icon name is not already readable need an entry; single letters and
         // function keys (C, F1) are read straight from the sprite name. See the module's KeyGlyph.
@@ -76,6 +85,7 @@ namespace DiscoAccess.Core.Strings
         public const string ScreenSave = "save game";
         public const string ScreenLoad = "load game";
         public const string ScreenMainMenu = "main menu";
+        public const string ScreenPauseMenu = "pause menu";
         public const string ScreenHelp = "help";
         public const string ScreenThought = "thought";
         public const string ScreenCollage = "collage mode";

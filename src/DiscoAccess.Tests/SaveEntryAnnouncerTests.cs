@@ -18,5 +18,12 @@ namespace DiscoAccess.Tests
             var state = new SaveEntryState("New Save", date: null, time: null);
             Assert.Equal("New Save", SaveEntryAnnouncer.Compose(state));
         }
+
+        [Fact]
+        public void Compose_NewSaveSlot_LeadsWithNewSaveMarker()
+        {
+            var state = new SaveEntryState("Martinaise, Day 8, 21-50", date: null, time: null, isNew: true);
+            Assert.Equal("new save, Martinaise, Day 8, 21-50", SaveEntryAnnouncer.Compose(state));
+        }
     }
 }

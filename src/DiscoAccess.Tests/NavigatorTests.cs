@@ -173,6 +173,36 @@ namespace DiscoAccess.Tests
             Assert.Equal("C", nav.Current!.Label); // re-landed on the rebuilt list's first focusable
         }
 
+        [Fact]
+        public void EnsureFocusValid_Rehomes_WhenAncestorReplacedButImmediateParentIntact()
+        {
+            // The options-screen rebuild shape: a content Panel holds an inner list which holds the controls.
+            // A tab switch replaces the WHOLE inner list (clear the panel, add a fresh list), so the focused
+            // control's immediate parent (the old list) still lists it, but that old list is no longer under
+            // the panel. An immediate-parent-only orphan check misses this; the full-chain walk catches it.
+            var root = new Container(ContainerShape.Panel);
+            var content = new Container(ContainerShape.Panel);
+            var oldList = new Container(ContainerShape.VerticalList, "settings");
+            oldList.Add(new Button("A"));
+            oldList.Add(new Button("B"));
+            content.Add(oldList);
+            root.Add(content);
+            var nav = NewNav();
+            nav.Attach(root);
+            Assert.True(nav.Handle(UiActions.Down));
+            Assert.Equal("B", nav.Current!.Label);
+
+            // Tab switch: the content panel drops the old list (whose children keep their back-pointers) and
+            // gets a brand-new list. oldList still .Contains the focused "B", but content no longer .Contains oldList.
+            content.Clear();
+            var newList = new Container(ContainerShape.VerticalList, "controls");
+            newList.Add(new Button("C"));
+            content.Add(newList);
+
+            Assert.True(nav.EnsureFocusValid()); // ancestor link broken -> orphaned -> re-homed
+            Assert.Equal("C", nav.Current!.Label);
+        }
+
         // A screen root that advertises a back action (Escape closes it).
         private sealed class BackContainer : Container
         {

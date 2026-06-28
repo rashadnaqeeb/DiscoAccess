@@ -15,6 +15,12 @@ namespace DiscoAccess.Module.Nav
         /// <summary>The game view this screen reads.</summary>
         public abstract ViewType ViewType { get; }
 
+        /// <summary>Finer applicability within a <see cref="ViewType"/>, for a view the game reuses for
+        /// distinct screens (MAINMENU is both the title menu and the in-game pause menu). The ScreenManager
+        /// picks the first registered screen whose ViewType matches and whose <see cref="AppliesNow"/> is
+        /// true, so register a more specific screen before the general fallback. Default true.</summary>
+        public virtual bool AppliesNow() => true;
+
         /// <summary>Authored screen name spoken when the screen is entered.</summary>
         public abstract string ScreenName { get; }
 
@@ -23,8 +29,10 @@ namespace DiscoAccess.Module.Nav
 
         /// <summary>Called every frame while this screen stands (the view is unchanged). A rich screen
         /// overrides it to refresh dynamic content in place - rebuilding a sub-tree when the game state it
-        /// mirrors changes (e.g. an options tab switch) and re-homing the navigator. The default does
-        /// nothing, so a static screen needs no per-frame work.</summary>
-        public virtual void OnUpdate(IModHost host, TraditionalNavigator nav) { }
+        /// mirrors changes (e.g. an options tab switch) and re-homing the navigator. Returns whether focus
+        /// was re-homed this frame, so the ScreenManager re-announces the landing once. It must NOT announce
+        /// itself - the ScreenManager owns the post-update announce so the read is single and reflects the
+        /// rebuilt tree. The default does nothing and returns false.</summary>
+        public virtual bool OnUpdate(IModHost host, TraditionalNavigator nav) => false;
     }
 }

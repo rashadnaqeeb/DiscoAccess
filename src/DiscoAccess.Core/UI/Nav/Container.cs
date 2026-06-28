@@ -49,7 +49,7 @@ namespace DiscoAccess.Core.UI.Nav
             _children.Add(element);
         }
 
-        public void Clear()
+        public virtual void Clear()
         {
             _children.Clear();
             FocusedChild = null;

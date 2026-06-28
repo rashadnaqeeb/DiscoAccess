@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.IO;
 using DiscoAccess.Core.Input;
 using DiscoAccess.Core.Modularity;
 using DiscoAccess.Core.Strings;
@@ -7,6 +9,7 @@ using DiscoAccess.Core.UI.Nav;
 using DiscoAccess.Module.Input;
 using DiscoAccess.Module.Nav;
 using HarmonyLib;
+using Sunshine.Views;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
@@ -45,6 +48,10 @@ namespace DiscoAccess.Module
         private ScreenManager _screens;
         private static readonly InputCategory[] UiCategory = { InputCategory.UI };
         private IntPtr _lastSelected = IntPtr.Zero;
+        // The single source of truth for "a game text field owns the keyboard" (grace-inclusive). While
+        // Active, our navigator stands down so keystrokes reach the field; the input dispatcher set up in
+        // Load gates on it, as must any future raw-key path (type-ahead). See TextEditGate for the why.
+        private readonly TextEditGate _editGate = new TextEditGate();
         // The value-only readout of the focused options control, for detecting an in-place change
         // (adjusting a slider, toggling) where focus does not move. Null when the focus is not an
         // options control.
@@ -74,6 +81,7 @@ namespace DiscoAccess.Module
         public void Load(IModHost host)
         {
             _host = host;
+            _devEnabled = Environment.GetEnvironmentVariable("DISCOACCESS_DEV") == "1";
             // A per-load id so a reload's Dispose unpatches exactly this load's patches. No patches yet;
             // future readers register them through this instance.
             _harmony = new Harmony("com.rashad.discoaccess.module");
@@ -99,9 +107,19 @@ namespace DiscoAccess.Module
             // The UI category is live only while our navigator owns the keyboard (a registered screen, no
             // popup up); a fired UI key then routes into the navigator. Set by the ScreenManager's Tick,
             // which runs before input is polled.
-            _input.ActiveCategoriesProvider = () => _screens.OwnsKeyboard ? UiCategory : null;
+            _input.ActiveCategoriesProvider = () => (_screens.OwnsKeyboard && !_editGate.Active) ? UiCategory : null;
             _input.JustPressedDispatcher = a =>
-                _screens.OwnsKeyboard && a.Category == InputCategory.UI && _screens.Dispatch(a.Key);
+            {
+                if (!_screens.OwnsKeyboard || _editGate.Active || a.Category != InputCategory.UI)
+                    return false;
+                bool consumed = _screens.Dispatch(a.Key);
+                // An Escape our navigator did not consume means the screen has no Back of its own (the title
+                // menu): hand the keyboard back so the game's own Escape runs (nothing at the title, matching
+                // vanilla; resume in the pause menu) rather than swallowing it.
+                if (!consumed && a.Key == UiActions.Back)
+                    _screens.DeferEscapeToGame();
+                return consumed;
+            };
 
             // Surface any view ScreenAdapter neither names nor silences (e.g. one a game update added),
             // so it is noticed and named rather than going silently unannounced.
@@ -114,27 +132,52 @@ namespace DiscoAccess.Module
             // A modal confirmation/error popup (quit, errors, yes/no prompts) runs its own navigation and
             // needs the game's input; read it first so our navigator stands down (hands the keyboard back)
             // wherever it appears, including over a registered screen. Read once and reused below.
+            // A rename cell entered edit mode last frame and parked its field here; focus it now, a frame
+            // after the activating Enter, so the field does not consume that Enter and commit immediately.
+            // Done before the editing check so the freshly focused field suppresses us this same frame.
+            if (Nav.RenameCell.PendingActivation != null)
+            {
+                InputField pending = Nav.RenameCell.PendingActivation;
+                Nav.RenameCell.PendingActivation = null;
+                if (pending != null) { pending.Select(); pending.ActivateInputField(); }
+            }
+
             string dialog = ConfirmDialogAdapter.TryRead();
             bool dialogUp = !string.IsNullOrEmpty(dialog);
 
+            // Recompute the text-edit gate up front, before input is polled: while a save-name field owns
+            // the keyboard our navigator must stand down so keys reach it. A text edit does NOT hand the
+            // keyboard back to the game (see TextEditGate); it only gates our own dispatch, via _editGate.
+            _editGate.Update();
+
             // Resolve keyboard ownership for this frame BEFORE polling input (the UI category gates on it):
-            // our navigator takes the keyboard on a registered screen with no popup; otherwise the game
-            // keeps it for the focus-follower fallback or the popup's own navigation.
-            _screens.Tick(suppressed: dialogUp);
+            // our navigator takes the keyboard on a registered screen with no popup; a popup hands it back.
+            // A just-ended text edit asks the standing screen to re-read the focused control once.
+            _screens.Tick(suppressed: dialogUp, editEnded: _editGate.JustEnded);
 
             // Poll our own keyboard input. A Global hotkey fires no matter what screen or popup is up; a
-            // UI key routes into the navigator only while it owns the keyboard.
+            // UI key routes into the navigator only while it owns the keyboard and is not gated for an edit.
             _input.Tick(Time.unscaledTime);
+
+            // DEV: drive navigation and text entry from a command file, so the flow can be exercised
+            // headless (a backgrounded window takes no real keys). Dormant unless DISCOACCESS_DEV=1.
+            if (_devEnabled) PumpDevCommands();
 
             // The popup owns the frame while up; announce it (and reset the focus dedup on close so the
             // restored control re-announces).
             if (TickDialog(dialog))
                 return;
 
-            // Our navigator drove this frame (it announced via the dispatcher); nothing for the
-            // focus-follower to do. Clear its dedup state so a later hand-off to a not-yet-migrated screen
-            // re-announces the screen name and landing control instead of treating frozen state as
-            // already spoken.
+            // Speak "edit mode" as editing engages so the player knows they can type. The matching re-read
+            // when editing ends is driven through _screens.Tick (editEnded) above, so it lands after any
+            // save-list rebuild and as a single announce.
+            if (_editGate.JustBegan)
+                _host.Speech.Speak(Strings.StatusEditMode, interrupt: false);
+
+            // Our navigator owns the keyboard this frame (driving a registered screen, possibly gated for a
+            // text edit): it, or the edit, handled the frame; nothing for the focus-follower to do. Clear its
+            // dedup state so a later hand-off to a not-yet-migrated screen re-announces the screen name and
+            // landing control instead of treating frozen state as already spoken.
             if (_screens.OwnsKeyboard)
             {
                 _lastScreen = null;
@@ -354,6 +397,86 @@ namespace DiscoAccess.Module
             EventSystem es = EventSystem.current;
             GameObject go = es != null ? es.currentSelectedGameObject : null;
             return go != null ? go.GetComponent<Selectable>() : null;
+        }
+
+        // DEV: a command file dropped by the test harness, drained one command per frame so injected keys
+        // mimic real key-per-frame input. Lines: "nav:down|up|left|right|enter|back|tab|home|end", "type:<text>".
+        // Off unless DISCOACCESS_DEV=1, so normal play never touches the file.
+        private bool _devEnabled;
+        private readonly Queue<string> _devCmds = new Queue<string>();
+        private static readonly string DevCmdFile = Path.Combine(Path.GetTempPath(), "disco_devcmd.txt");
+
+        private void PumpDevCommands()
+        {
+            try
+            {
+                if (File.Exists(DevCmdFile))
+                {
+                    foreach (var line in File.ReadAllLines(DevCmdFile))
+                        if (!string.IsNullOrWhiteSpace(line)) _devCmds.Enqueue(line.Trim());
+                    File.Delete(DevCmdFile);
+                }
+            }
+            catch (Exception e) { _host.LogWarning("dev cmd read: " + e.Message); }
+
+            if (_devCmds.Count == 0) return;
+            string cmd = _devCmds.Dequeue();
+            try { ApplyDevCommand(cmd); }
+            catch (Exception e) { _host.LogWarning("dev cmd '" + cmd + "': " + e.Message); }
+        }
+
+        private void ApplyDevCommand(string cmd)
+        {
+            int colon = cmd.IndexOf(':');
+            string verb = colon >= 0 ? cmd.Substring(0, colon) : cmd;
+            string arg = colon >= 0 ? cmd.Substring(colon + 1) : "";
+
+            if (verb == "type")
+            {
+                InputField f = FocusedInputField();
+                if (f == null) { _host.LogWarning("dev type: no focused field"); return; }
+                f.text += arg;
+                f.caretPosition = f.text.Length;
+                return;
+            }
+            if (verb != "nav") return;
+
+            // Enter/Back on a focused text field route to the field (commit/cancel), like a real key would.
+            InputField field = FocusedInputField();
+            if (field != null && (arg == "enter" || arg == "back"))
+            {
+                if (arg == "enter") field.onEndEdit.Invoke(field.text);
+                field.DeactivateInputField();
+                return;
+            }
+
+            if (!_screens.OwnsKeyboard) return; // a UI key only acts while our navigator owns the keyboard
+            string action = DevAction(arg);
+            if (action != null) _screens.Dispatch(action);
+        }
+
+        private static string DevAction(string dir)
+        {
+            switch (dir)
+            {
+                case "up": return UiActions.Up;
+                case "down": return UiActions.Down;
+                case "left": return UiActions.Left;
+                case "right": return UiActions.Right;
+                case "enter": return UiActions.Activate;
+                case "back": return UiActions.Back;
+                case "tab": return UiActions.Next;
+                case "home": return UiActions.Home;
+                case "end": return UiActions.End;
+                default: return null;
+            }
+        }
+
+        private static InputField FocusedInputField()
+        {
+            EventSystem es = EventSystem.current;
+            GameObject go = es != null ? es.currentSelectedGameObject : null;
+            return go != null ? go.GetComponent<InputField>() : null;
         }
 
         public void Dispose()
