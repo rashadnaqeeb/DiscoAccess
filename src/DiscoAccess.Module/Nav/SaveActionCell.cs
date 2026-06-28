@@ -7,13 +7,13 @@ using UnityEngine.UI;
 namespace DiscoAccess.Module.Nav
 {
     /// <summary>
-    /// A grid cell that acts on one save through a shared button: the row is the save, the column is an
+    /// A table cell that acts on one save through a shared button: the row is the save, the column is an
     /// action. The game has a single Load/Save button and a single Delete button that act on whichever
     /// save is selected, so on focus the cell makes its save the game's selection (and the buttons follow),
     /// and on activate it re-asserts that selection and runs the button's own click handler. The Load and
     /// Save columns are this base directly with their respective button; Delete adds a deletable gate.
     /// </summary>
-    internal class SaveActionCell : GridCell
+    internal class SaveActionCell : TableCell
     {
         protected readonly SaveGameListEntry Entry;
         protected readonly Selectable Row;

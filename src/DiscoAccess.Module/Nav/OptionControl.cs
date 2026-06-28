@@ -58,6 +58,17 @@ namespace DiscoAccess.Module.Nav
             return s != null ? OptionAnnouncer.Compose(s) : string.Empty;
         }
 
+        // A slider uses the universal bound announcement ("minimum"/"maximum" when an adjust hits an end).
+        // A dropdown steps through options that are not a magnitude, so its ends are not a min or max;
+        // re-read the chosen option instead. (A toggle advertises no increase/decrease, so never lands here.)
+        public override string GetAdjustText(string actionId, bool changed)
+        {
+            OptionState s = Read(withTooltip: false);
+            if (s != null && s.Kind == OptionControlKind.Dropdown)
+                return GetValueText();
+            return base.GetAdjustText(actionId, changed);
+        }
+
         public override IEnumerable<ElementAction> GetActions()
         {
             OptionState s = Read(withTooltip: false);

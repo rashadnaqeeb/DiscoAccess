@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using DiscoAccess.Core.Strings;
 using DiscoAccess.Core.UI.Nav;
 using Xunit;
 
@@ -18,6 +19,44 @@ namespace DiscoAccess.Tests
             {
                 yield return new ElementAction(ActionIds.Activate, () => Activations++);
             }
+        }
+
+        // A focusable stepper that clamps at a floor and a cap, using the universal default adjust
+        // announcement (a move reads the value; an adjust that hits an end names the bound).
+        private sealed class Stepper : UIElement
+        {
+            private readonly int _min, _max;
+            public int Val;
+            public Stepper(int val, int min, int max) { Val = val; _min = min; _max = max; }
+            public override string Value => Val.ToString();
+            public override IEnumerable<ElementAction> GetActions()
+            {
+                yield return new ElementAction(ActionIds.Decrease, () => { if (Val > _min) Val--; });
+                yield return new ElementAction(ActionIds.Increase, () => { if (Val < _max) Val++; });
+            }
+        }
+
+        // A stepper that never moves and overrides the adjust announcement, as the ability control (its
+        // "no more points" cue) and the option dropdown do.
+        private sealed class CustomAdjustStepper : UIElement
+        {
+            public override string Value => "5";
+            public override IEnumerable<ElementAction> GetActions()
+            {
+                yield return new ElementAction(ActionIds.Increase, () => { });
+            }
+            public override string GetAdjustText(string actionId, bool changed)
+                => changed ? GetValueText() : "blocked here";
+        }
+
+        private static (Container root, Stepper stepper) StepperTree(int val, int min, int max)
+        {
+            var root = new Container(ContainerShape.Panel);
+            var list = new Container(ContainerShape.VerticalList);
+            var stepper = new Stepper(val, min, max);
+            list.Add(stepper);
+            root.Add(list);
+            return (root, stepper);
         }
 
         private readonly List<string> _spoken = new List<string>();
@@ -56,6 +95,57 @@ namespace DiscoAccess.Tests
             Assert.True(nav.Handle(UiActions.Down));
             Assert.Same(items[1], nav.Current);
             Assert.Equal(new[] { "New Game, button" }, _spoken);
+        }
+
+        [Fact]
+        public void Increase_WhenValueMoves_AnnouncesNewValue()
+        {
+            var (root, stepper) = StepperTree(val: 1, min: 1, max: 3);
+            var nav = NewNav();
+            nav.Attach(root);
+
+            Assert.True(nav.Handle(UiActions.Right));
+            Assert.Equal(2, stepper.Val);
+            Assert.Equal("2", _spoken[^1]);
+        }
+
+        [Fact]
+        public void Increase_AtMaximum_AnnouncesMaximum()
+        {
+            var (root, stepper) = StepperTree(val: 3, min: 1, max: 3); // already at the cap
+            var nav = NewNav();
+            nav.Attach(root);
+
+            Assert.True(nav.Handle(UiActions.Right)); // consumed: the action exists
+            Assert.Equal(3, stepper.Val);             // but the value did not move
+            Assert.Equal(Strings.StatusMaximum, _spoken[^1]);
+        }
+
+        [Fact]
+        public void Decrease_AtMinimum_AnnouncesMinimum()
+        {
+            var (root, stepper) = StepperTree(val: 1, min: 1, max: 3); // already at the floor
+            var nav = NewNav();
+            nav.Attach(root);
+
+            Assert.True(nav.Handle(UiActions.Left));
+            Assert.Equal(1, stepper.Val);
+            Assert.Equal(Strings.StatusMinimum, _spoken[^1]);
+        }
+
+        [Fact]
+        public void BlockedAdjust_ElementMayOverrideTheAnnouncement()
+        {
+            var root = new Container(ContainerShape.Panel);
+            var list = new Container(ContainerShape.VerticalList);
+            var stepper = new CustomAdjustStepper();
+            list.Add(stepper);
+            root.Add(list);
+            var nav = NewNav();
+            nav.Attach(root);
+
+            Assert.True(nav.Handle(UiActions.Right));
+            Assert.Equal("blocked here", _spoken[^1]); // the override replaces the default "maximum"
         }
 
         [Fact]

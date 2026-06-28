@@ -102,12 +102,12 @@ namespace DiscoAccess.Core.UI.Nav
         /// <summary>The child to land on when entering a container: remembered focus, else first focusable.</summary>
         protected static UIElement? RepresentativeChild(Container c)
         {
-            if (c.FocusedChild != null && c.FocusedChild.CanFocus && !IsEmptyPanel(c.FocusedChild))
+            if (c.FocusedChild != null && c.FocusedChild.CanFocus && !IsEmptyContainer(c.FocusedChild))
                 return c.FocusedChild;
             return c.FirstFocusable();
         }
 
-        private static bool IsEmptyPanel(UIElement e) => e is Container c && c.IsEmptyPanel;
+        private static bool IsEmptyContainer(UIElement e) => e is Container c && c.IsEmptyContainer;
 
         /// <summary>Rebuild the path as the ancestor chain from the root down to <paramref name="target"/>,
         /// setting each container's remembered focus along the way.</summary>

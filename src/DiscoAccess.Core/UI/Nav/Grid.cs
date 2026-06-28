@@ -3,10 +3,12 @@ using System.Collections.Generic;
 namespace DiscoAccess.Core.UI.Nav
 {
     /// <summary>
-    /// A 2-D grid of cells navigated with a cell cursor: Up/Down change row, Left/Right change column,
-    /// and the whole grid is one Tab-stop. Cells are added a row at a time and registered as ordinary
-    /// focusable children (in row-major order, so the inherited first/last-focusable scans still work);
-    /// the row/column geometry the grid navigator needs is held alongside. Movement and the axis-aware
+    /// A 2D grid of homogeneous cells navigated with a cell cursor: Up/Down change row, Left/Right change
+    /// column, and the whole grid is one Tab-stop. Unlike <see cref="Table"/> (records with fixed action
+    /// columns, where only the changed axis is announced), every grid cell is self-describing and reads its
+    /// full focus text on each move. Cells are added a row at a time and registered as ordinary focusable
+    /// children (in row-major order, so the inherited first/last-focusable scans and the type-ahead search
+    /// still work); the row/column geometry the grid navigator needs is held alongside. Movement and the
     /// announce live in <see cref="TraditionalNavigator"/>; this type is just the structure.
     /// </summary>
     public sealed class Grid : Container
@@ -54,30 +56,6 @@ namespace DiscoAccess.Core.UI.Nav
                 for (int c = 0; c < _rows[r].Count; c++)
                     if (_rows[r][c] == cell) { row = r; col = c; return true; }
             row = 0; col = 0; return false;
-        }
-    }
-
-    /// <summary>
-    /// A cell in a <see cref="Grid"/>. It exposes the two axis labels the grid navigator speaks as the
-    /// cursor moves: the column header (spoken when the column changes) and the row text (spoken when the
-    /// row changes). The full focus message (screen entry, Tab landing) joins both, so a cell that lands
-    /// focus from nowhere still reads its column and row together.
-    /// </summary>
-    public abstract class GridCell : UIElement
-    {
-        /// <summary>The column's heading word (e.g. an action), read live; spoken on a column move.</summary>
-        public abstract string? ColumnHeader { get; }
-
-        /// <summary>The row's text (e.g. the save line), read live; spoken on a row move.</summary>
-        public abstract string? RowText { get; }
-
-        public override string GetFocusText()
-        {
-            var parts = new List<string>(3);
-            if (!string.IsNullOrEmpty(ColumnHeader)) parts.Add(ColumnHeader!);
-            if (!string.IsNullOrEmpty(RowText)) parts.Add(RowText!);
-            if (!string.IsNullOrEmpty(Value)) parts.Add(Value!);
-            return string.Join(", ", parts);
         }
     }
 }

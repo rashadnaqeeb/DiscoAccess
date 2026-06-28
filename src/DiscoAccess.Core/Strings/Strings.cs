@@ -63,11 +63,20 @@ namespace DiscoAccess.Core.Strings
         // shows this only as an emblem on the portrait, with no localized word to read, so it is authored.
         public const string StatusSignature = "signature";
 
+        // Spoken on the Adjust Abilities screen when a raise is rejected because the shared ability-point
+        // pool is empty. DE only greys out the plus button, with no message a blind player could hear.
+        public const string AbilityNoPointsLeft = "no more points to assign";
+
         // Stepped-slider step words. Menu Size and Dialogue Text Size are a size scale; the game keeps
         // no per-step label on the slider, so these are authored.
         public const string StepSmall = "small";
         public const string StepMedium = "medium";
         public const string StepLarge = "large";
+
+        // Spoken when a slider or stepper is adjusted past its end, so the user hears that it stopped
+        // rather than the same value read back twice.
+        public const string StatusMinimum = "minimum";
+        public const string StatusMaximum = "maximum";
 
         // Screen names, spoken when a screen opens (the landed control then queues behind). DE exposes
         // its screens only as a Unity enum with no localized title, so these are authored; mapped from

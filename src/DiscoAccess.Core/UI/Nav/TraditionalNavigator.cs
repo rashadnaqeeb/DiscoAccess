@@ -10,7 +10,7 @@ namespace DiscoAccess.Core.UI.Nav
     /// asks the screen to go back, Home/End jump to a list's ends. Entering a container auto-focuses its
     /// representative child.
     ///
-    /// It also drives type-ahead search over the focused list/grid: the module's raw-key reader feeds
+    /// It also drives type-ahead search over the focused list/table: the module's raw-key reader feeds
     /// typed letters in via <see cref="TypeSearchChar"/> (it owns the engine-coupled key reading; this
     /// side owns the matching engine, focus landing, and announcement, all unit-testable). While a search
     /// is live, Up/Down step the matches, Home/End jump to the first/last, Escape clears, and any other
@@ -48,7 +48,7 @@ namespace DiscoAccess.Core.UI.Nav
         /// typed Space on this so a lone Space (no buffer) is not swallowed into an empty search.</summary>
         public bool SearchHasBuffer => _search.HasBuffer;
 
-        /// <summary>Feed one typed character into the search: (re)scope to the focused list/grid, append,
+        /// <summary>Feed one typed character into the search: (re)scope to the focused list/table, append,
         /// match, and land on the best result (announced interrupting, since typing is rapid). A focus move
         /// since the last result starts a fresh search at the new location. Called by the module's raw-key
         /// reader, never from the action dispatch.</summary>
@@ -76,7 +76,7 @@ namespace DiscoAccess.Core.UI.Nav
             RunSearch();
         }
 
-        // Re-scope to the live focused list/grid and run the current buffer against it, landing on the best
+        // Re-scope to the live focused list/table and run the current buffer against it, landing on the best
         // result. Shared by typing and backspacing; the UI is live, so the scope is rebuilt each time.
         private void RunSearch()
         {
@@ -85,11 +85,11 @@ namespace DiscoAccess.Core.UI.Nav
             _search.Search(_searchItems.Count, i => SearchName(_searchItems[i]), SearchFocusResult);
         }
 
-        // What an item is matched by: a grid cell matches on its ROW text (the save line) so a whole row is
+        // What an item is matched by: a table cell matches on its ROW text (the save line) so a whole row is
         // one result, not one per action column; everything else matches on its full focus text (label,
         // role, value), where the leading label is what the user is typing toward.
         private static string SearchName(UIElement item)
-            => item is GridCell gc && !string.IsNullOrEmpty(gc.RowText) ? gc.RowText! : item.GetFocusText();
+            => item is TableCell tc && !string.IsNullOrEmpty(tc.RowText) ? tc.RowText! : item.GetFocusText();
 
         public override bool Handle(string actionKey)
         {
@@ -148,28 +148,49 @@ namespace DiscoAccess.Core.UI.Nav
             if (Current == null) return false;
 
             // A focused slider/stepper advertises increase/decrease; Left/Right adjust it and re-announce
-            // just the new value.
-            if (dir == NavDirection.Left && Current.InvokeAction(ActionIds.Decrease))
-            { Speak(Current.GetValueText(), interrupt: true); return true; }
-            if (dir == NavDirection.Right && Current.InvokeAction(ActionIds.Increase))
-            { Speak(Current.GetValueText(), interrupt: true); return true; }
+            // the outcome - the new value, or an element-chosen message when the adjust changed nothing
+            // (e.g. an ability that could not be raised for lack of points). The value-text diff tells the
+            // element whether the adjust actually moved.
+            if (dir == NavDirection.Left || dir == NavDirection.Right)
+            {
+                string adjust = dir == NavDirection.Left ? ActionIds.Decrease : ActionIds.Increase;
+                string before = Current.GetValueText();
+                if (Current.InvokeAction(adjust))
+                {
+                    bool changed = Current.GetValueText() != before;
+                    Speak(Current.GetAdjustText(adjust, changed), interrupt: true);
+                    return true;
+                }
+            }
 
-            // A grid moves a 2-D cell cursor and announces only the axis that changed.
+            // A table moves a cell cursor and announces only the axis that changed.
+            if (Current.Parent is Table table) return TableArrow(dir, table);
+
+            // A grid moves a cell cursor too, but every cell is self-describing, so the landed cell reads
+            // its full focus text.
             if (Current.Parent is Grid grid) return GridArrow(dir, grid);
 
             var snapshot = new List<UIElement>(Path);
-            if (!Move(dir)) return false;
-            AnnounceDelta(snapshot, interrupt: true);
-            return true;
+            if (Move(dir))
+            {
+                AnnounceDelta(snapshot, interrupt: true);
+                return true;
+            }
+            // Could not move within the lists. A vertical move spills into the adjacent block of an
+            // enclosing VerticalList - up from a bottom bar back into the grid above it, say - so a
+            // multi-element screen reads as one top-to-bottom flow.
+            if (dir == NavDirection.Up || dir == NavDirection.Down)
+                return TrySpillVertical(dir);
+            return false;
         }
 
-        // Move the cell cursor in a grid and announce Excel-style: the column header when the column
+        // Move the cell cursor in a table and announce Excel-style: the column header when the column
         // changed, the row text when the row changed, then the cell's own value if any. A non-focusable
         // cell (e.g. a non-deletable save's Delete) is scanned past in the move direction; running off the
-        // grid consumes the key without wrapping.
-        private bool GridArrow(NavDirection dir, Grid grid)
+        // table consumes the key without wrapping.
+        private bool TableArrow(NavDirection dir, Table table)
         {
-            if (!grid.TryCoords(Current!, out int r, out int c)) return false;
+            if (!table.TryCoords(Current!, out int r, out int c)) return false;
             int nr = r, nc = c;
             UIElement? next = null;
             while (true)
@@ -181,7 +202,7 @@ namespace DiscoAccess.Core.UI.Nav
                     case NavDirection.Right: nc++; break;
                     case NavDirection.Left: nc--; break;
                 }
-                var cell = grid.CellAt(nr, nc);
+                var cell = table.CellAt(nr, nc);
                 if (cell == null) return true; // off the edge: consume, no wrap
                 if (cell.CanFocus) { next = cell; break; }
             }
@@ -190,18 +211,18 @@ namespace DiscoAccess.Core.UI.Nav
             return true;
         }
 
-        // Move focus onto a grid cell and announce Excel-style: only the axis text the caller says changed
+        // Move focus onto a table cell and announce Excel-style: only the axis text the caller says changed
         // (the column header on a column move, the row text on a row move), falling back to the cell's full
-        // focus text if neither axis has anything to say. Then sync the platform cursor. Shared by the grid
+        // focus text if neither axis has anything to say. Then sync the platform cursor. Shared by the table
         // arrow and Home/End jumps so they land and read consistently.
         private void LandOnCell(UIElement cell, bool announceColumn, bool announceRow)
         {
             BuildPathTo(cell);
             var parts = new List<string>(2);
-            if (cell is GridCell gc)
+            if (cell is TableCell tc)
             {
-                if (announceColumn && !string.IsNullOrEmpty(gc.ColumnHeader)) parts.Add(gc.ColumnHeader!);
-                if (announceRow && !string.IsNullOrEmpty(gc.RowText)) parts.Add(gc.RowText!);
+                if (announceColumn && !string.IsNullOrEmpty(tc.ColumnHeader)) parts.Add(tc.ColumnHeader!);
+                if (announceRow && !string.IsNullOrEmpty(tc.RowText)) parts.Add(tc.RowText!);
             }
             if (parts.Count == 0)
             {
@@ -209,6 +230,70 @@ namespace DiscoAccess.Core.UI.Nav
                 if (!string.IsNullOrEmpty(text)) parts.Add(text);
             }
             if (parts.Count > 0) Speak(string.Join(", ", parts), interrupt: true);
+            cell.OnFocused();
+        }
+
+        // Move the cell cursor in a grid. Unlike a table, every cell is self-describing, so the landed cell
+        // reads its full focus text rather than just a changed axis. A non-focusable cell is scanned past in
+        // the move direction; running off the grid consumes the key without wrapping.
+        private bool GridArrow(NavDirection dir, Grid grid)
+        {
+            if (!grid.TryCoords(Current!, out int r, out int c)) return false;
+            int nr = r, nc = c;
+            while (true)
+            {
+                switch (dir)
+                {
+                    case NavDirection.Down: nr++; break;
+                    case NavDirection.Up: nr--; break;
+                    case NavDirection.Right: nc++; break;
+                    case NavDirection.Left: nc--; break;
+                }
+                var cell = grid.CellAt(nr, nc);
+                if (cell == null)
+                {
+                    // Off the edge. A vertical move spills into an adjacent block (a bottom bar under the
+                    // grid); a horizontal move just consumes (no wrap).
+                    if (dir == NavDirection.Up || dir == NavDirection.Down) TrySpillVertical(dir);
+                    return true;
+                }
+                if (cell.CanFocus) { LandOnGridCell(cell); return true; }
+            }
+        }
+
+        // Vertical movement that cannot proceed inside the current block spills into the adjacent block of
+        // an enclosing VerticalList - the screen's blocks stacked top to bottom (e.g. a skill grid over a
+        // button bar). Climbs to the block that is a direct child of that list, steps to the neighbor in the
+        // move direction (empty blocks skipped), and enters it: Down lands on its first focusable, Up on its
+        // remembered child (so leaving the grid downward and coming back up returns to the same cell).
+        // Returns false at the outer edge (no enclosing list or no neighbor block) so the caller consumes
+        // without wrapping.
+        private bool TrySpillVertical(NavDirection dir)
+        {
+            UIElement? block = Current;
+            while (block != null && (block.Parent == null || block.Parent.Shape != ContainerShape.VerticalList))
+                block = block.Parent;
+            if (block == null) return false;
+            var list = block.Parent!;
+            var neighbor = list.GetNeighbor(block, dir);
+            if (neighbor == null) return false;
+
+            var snapshot = new List<UIElement>(Path);
+            int idx = Path.IndexOf(block);
+            if (idx >= 0) Path.RemoveRange(idx, Path.Count - idx);
+            AppendWithDescend(neighbor);
+            list.SetFocusedChild(neighbor);
+            AnnounceDelta(snapshot, interrupt: true);
+            return true;
+        }
+
+        // Move focus onto a grid cell, speak its full focus text (interrupting, like any move), and sync the
+        // platform cursor. Shared by the grid arrow and Home/End jumps.
+        private void LandOnGridCell(UIElement cell)
+        {
+            BuildPathTo(cell);
+            var text = cell.GetFocusText();
+            if (!string.IsNullOrEmpty(text)) Speak(text, interrupt: true);
             cell.OnFocused();
         }
 
@@ -268,17 +353,36 @@ namespace DiscoAccess.Core.UI.Nav
         {
             var container = Current?.Parent;
 
-            // In a grid, jump to the first/last focusable cell of the current column (only the row
-            // changes, so just the row text is announced).
+            // In a grid, jump to the first/last focusable cell of the current row (the attribute's first or
+            // last skill), staying on that row.
             if (container is Grid grid)
             {
-                if (!grid.TryCoords(Current!, out _, out int col)) return true;
+                if (!grid.TryCoords(Current!, out int gr, out _)) return true;
                 int step = first ? 1 : -1;
-                int start = first ? 0 : grid.RowCount - 1;
-                UIElement? edge = null;
-                for (int rr = start; rr >= 0 && rr < grid.RowCount; rr += step)
+                int start = first ? 0 : grid.ColCount - 1;
+                for (int cc = start; cc >= 0 && cc < grid.ColCount; cc += step)
                 {
-                    var cell = grid.CellAt(rr, col);
+                    var cell = grid.CellAt(gr, cc);
+                    if (cell != null && cell.CanFocus)
+                    {
+                        if (cell != Current) LandOnGridCell(cell);
+                        return true;
+                    }
+                }
+                return true;
+            }
+
+            // In a table, jump to the first/last focusable cell of the current column (only the row
+            // changes, so just the row text is announced).
+            if (container is Table table)
+            {
+                if (!table.TryCoords(Current!, out _, out int col)) return true;
+                int step = first ? 1 : -1;
+                int start = first ? 0 : table.RowCount - 1;
+                UIElement? edge = null;
+                for (int rr = start; rr >= 0 && rr < table.RowCount; rr += step)
+                {
+                    var cell = table.CellAt(rr, col);
                     if (cell != null && cell.CanFocus) { edge = cell; break; }
                 }
                 if (edge == null || edge == Current) return true;
@@ -305,9 +409,9 @@ namespace DiscoAccess.Core.UI.Nav
 
         // ---- Type-ahead search (engine in TypeAheadSearch; this is the glue) ----
 
-        // The searchable scope = the list/grid the focus lives in: climb from the focus to the outermost
+        // The searchable scope = the list/table the focus lives in: climb from the focus to the outermost
         // enclosing container, stopping at a Panel boundary (the tab-stop divider) or at the top. The root
-        // may itself BE the searchable list/grid - the title menu's root is a bare list with no Panel
+        // may itself BE the searchable list/table - the title menu's root is a bare list with no Panel
         // wrapper - so the climb must not stop short at the root; only a Panel ends it.
         private void RebuildSearchScope()
         {
@@ -317,16 +421,16 @@ namespace DiscoAccess.Core.UI.Nav
             while (scope.Parent != null && scope.Parent.Shape != ContainerShape.Panel)
                 scope = scope.Parent;
 
-            if (scope is Grid grid)
+            if (scope is Table table)
             {
-                // A grid searches by ROW (e.g. a save line), not by cell: one representative cell per row,
+                // A table searches by ROW (e.g. a save line), not by cell: one representative cell per row,
                 // taken at the focused column where that row has one, so a match keeps the column and
                 // Left/Right still move between that row's action cells. Matching is on the row text - see
                 // SearchName - so a row is a single result regardless of how many action columns it has.
-                int col = grid.TryCoords(Current!, out _, out int c) ? c : 0;
-                for (int r = 0; r < grid.RowCount; r++)
+                int col = table.TryCoords(Current!, out _, out int c) ? c : 0;
+                for (int r = 0; r < table.RowCount; r++)
                 {
-                    UIElement? rep = RowRepresentative(grid, r, col);
+                    UIElement? rep = RowRepresentative(table, r, col);
                     if (rep != null) _searchItems.Add(rep);
                 }
             }
@@ -334,16 +438,16 @@ namespace DiscoAccess.Core.UI.Nav
             else if (scope.CanFocus) _searchItems.Add(scope);
         }
 
-        // The cell a grid row contributes to a search: the cell at the preferred column if focusable, else
+        // The cell a table row contributes to a search: the cell at the preferred column if focusable, else
         // the row's first focusable cell. Landing on it keeps the focused column when the row has one (a
         // non-deletable save searched from the Delete column lands on its Load/Save action instead).
-        private static UIElement? RowRepresentative(Grid grid, int row, int preferCol)
+        private static UIElement? RowRepresentative(Table table, int row, int preferCol)
         {
-            UIElement? pref = grid.CellAt(row, preferCol);
+            UIElement? pref = table.CellAt(row, preferCol);
             if (pref != null && pref.CanFocus) return pref;
-            for (int c = 0; c < grid.ColCount; c++)
+            for (int c = 0; c < table.ColCount; c++)
             {
-                UIElement? cell = grid.CellAt(row, c);
+                UIElement? cell = table.CellAt(row, c);
                 if (cell != null && cell.CanFocus) return cell;
             }
             return null;

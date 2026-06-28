@@ -58,10 +58,6 @@ namespace DiscoAccess.Module
         // (adjusting a slider, toggling) where focus does not move. Null when the focus is not an
         // options control.
         private string _lastOptionValue;
-        // The value-and-grade readout of the focused ability (Adjust Abilities screen), for detecting an
-        // in-place change (pressing plus or minus) where focus does not move. Null when the focus is not
-        // an ability control.
-        private string _lastAbilityValue;
         // The signature marker of the focused skill (signature skill screen), for detecting the player
         // setting it as their signature where focus does not move. Null when the focus is not a skill.
         private string _lastSkillSignature;
@@ -200,7 +196,6 @@ namespace DiscoAccess.Module
                 {
                     _lastSelected = ptr;
                     _lastOptionValue = null;
-                    _lastAbilityValue = null;
                     _lastSkillSignature = null;
                     return;
                 }
@@ -213,23 +208,14 @@ namespace DiscoAccess.Module
                 // The in-place re-read trackers below belong to whichever structured control is now
                 // focused; clear them up front so a control that is none of these leaves all clear.
                 _lastOptionValue = null;
-                _lastAbilityValue = null;
                 _lastSkillSignature = null;
 
                 OptionState option = OptionAdapter.TryRead(selected, withTooltip: true);
-                AbilityState ability = option == null ? AbilityAdapter.TryRead(selected) : null;
-                SkillState skill = option == null && ability == null ? SkillAdapter.TryRead(selected) : null;
+                SkillState skill = option == null ? SkillAdapter.TryRead(selected) : null;
                 if (option != null)
                 {
                     _host.Speech.Speak(OptionAnnouncer.Compose(option), interrupt: interrupt);
                     _lastOptionValue = OptionAnnouncer.ComposeValue(option);
-                }
-                else if (ability != null)
-                {
-                    // An Adjust Abilities stat reads through its own structured adapter; the generic sweep
-                    // would speak the pip diamonds, duplicate the value, and voice the plus/minus arrows.
-                    _host.Speech.Speak(AbilityAnnouncer.Compose(ability), interrupt: interrupt);
-                    _lastAbilityValue = AbilityAnnouncer.ComposeValue(ability);
                 }
                 else if (skill != null)
                 {
@@ -241,10 +227,9 @@ namespace DiscoAccess.Module
                 }
                 else
                 {
-                    // A save/load entry and an archetype button each read cleanly through their own
-                    // structured adapter; the generic sweep would speak a save entry's uppercased name and
-                    // "| " timestamp dividers, or an archetype's stacked flip-clock animation layers as
-                    // duplicated digits. Other focus falls through to the generic reader.
+                    // A save/load entry reads cleanly through its own structured adapter; the generic sweep
+                    // would speak its uppercased name and "| " timestamp dividers. Other focus falls through
+                    // to the generic reader.
                     string text = Compose(selected);
                     if (!string.IsNullOrEmpty(text))
                         _host.Speech.Speak(text, interrupt: interrupt);
@@ -273,19 +258,6 @@ namespace DiscoAccess.Module
                     }
                 }
             }
-            else if (selected != null && _lastAbilityValue != null)
-            {
-                AbilityState ability = AbilityAdapter.TryRead(selected);
-                if (ability != null)
-                {
-                    string value = AbilityAnnouncer.ComposeValue(ability);
-                    if (value != _lastAbilityValue)
-                    {
-                        _host.Speech.Speak(value, interrupt: true);
-                        _lastAbilityValue = value;
-                    }
-                }
-            }
             else if (selected != null && _lastSkillSignature != null)
             {
                 SkillState skill = SkillAdapter.TryRead(selected);
@@ -311,10 +283,6 @@ namespace DiscoAccess.Module
             SaveEntryState save = SaveEntryAdapter.TryRead(selected);
             if (save != null)
                 return SaveEntryAnnouncer.Compose(save);
-
-            ArchetypeState archetype = ArchetypeAdapter.TryRead(selected);
-            if (archetype != null)
-                return ArchetypeAnnouncer.Compose(archetype);
 
             return FocusReader.Read(selected);
         }

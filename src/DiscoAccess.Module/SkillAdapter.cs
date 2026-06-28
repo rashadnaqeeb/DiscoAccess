@@ -22,9 +22,13 @@ namespace DiscoAccess.Module
         public static SkillState TryRead(Selectable selectable)
         {
             var panel = selectable.GetComponentInParent<SkillPortraitPanel>();
-            if (panel == null)
-                return null;
+            return panel != null ? Read(panel) : null;
+        }
 
+        /// <summary>Read a skill portrait directly into a <see cref="SkillState"/>, for the grid cell that
+        /// already holds the panel (no Selectable lookup needed).</summary>
+        public static SkillState Read(SkillPortraitPanel panel)
+        {
             string name = Skill.SkillTypeToLocalizedName(panel.skill, false);
             bool isSignature = panel.skill == SkillPortraitPanel.signatureSkill;
             return new SkillState(name, Value(panel), Description(panel.skill), isSignature);

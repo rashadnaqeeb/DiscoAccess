@@ -4,8 +4,8 @@ using UnityEngine.UI;
 
 namespace DiscoAccess.Module.Nav
 {
-    /// <summary>The load menu: the save grid whose primary action loads the focused save.</summary>
-    public sealed class LoadGameScreen : SaveLoadGridScreen
+    /// <summary>The load menu: the save table whose primary action loads the focused save.</summary>
+    public sealed class LoadGameScreen : SaveLoadTableScreen
     {
         public override ViewType ViewType => Sunshine.Views.ViewType.LOAD;
         public override string ScreenName => Strings.ScreenLoad;

@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using static DiscoAccess.Core.Strings.Strings;
 
 namespace DiscoAccess.Core.UI.Nav
 {
@@ -54,6 +55,19 @@ namespace DiscoAccess.Core.UI.Nav
 
         /// <summary>Just the changed state, for re-announcing after an in-place activation.</summary>
         public string GetValueText() => Value ?? "";
+
+        /// <summary>What to announce after an in-place adjust action (increase/decrease) just ran;
+        /// <paramref name="changed"/> is whether the value text actually moved. A move reads the new
+        /// value; an adjust that moved nothing hit a bound, so the default names it ("minimum" /
+        /// "maximum") rather than read the same value back. An element overrides this for a control whose
+        /// ends are not a magnitude (an option dropdown re-reads its choice) or that has a richer reason
+        /// for not moving (an ability raise rejected because no points remain).</summary>
+        public virtual string GetAdjustText(string actionId, bool changed)
+        {
+            if (changed)
+                return GetValueText();
+            return actionId == ActionIds.Increase ? StatusMaximum : StatusMinimum;
+        }
 
         /// <summary>Called by the navigator when this element becomes the focused leaf after a move. The
         /// default does nothing; an engine-coupled element overrides it to sync the platform's own cursor

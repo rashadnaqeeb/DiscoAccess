@@ -84,6 +84,9 @@ namespace DiscoAccess.Module.Nav
             Register(new OptionsScreen());
             Register(new LoadGameScreen());
             Register(new SaveGameScreen());
+            Register(new ArchetypeScreen());
+            Register(new AdjustAbilitiesScreen());
+            Register(new SignatureSkillScreen());
         }
 
         private void Register(Screen screen) => _screens.Add(screen);

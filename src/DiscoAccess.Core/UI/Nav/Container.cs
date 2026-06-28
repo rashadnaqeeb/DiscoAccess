@@ -38,10 +38,12 @@ namespace DiscoAccess.Core.UI.Nav
         public override string? Role
             => _label != null && Shape != ContainerShape.Panel ? RoleList : null;
 
-        /// <summary>A Panel with nothing focusable inside - structural only, never a landing target. The
-        /// navigator's descent and the first/last-focusable scans all skip it; centralized here so the
-        /// "skippable empty structure" rule lives in one place.</summary>
-        public bool IsEmptyPanel => Shape == ContainerShape.Panel && FirstFocusable() == null;
+        /// <summary>A container with nothing focusable inside - never a landing target. Covers a structural
+        /// Panel (pure layout) and a content list/table/grid that is momentarily empty (e.g. a grid built a
+        /// frame before its cells exist, repopulated on the next update). The navigator's descent and the
+        /// first/last-focusable scans all skip it; centralized here so the "skippable empty container" rule
+        /// lives in one place.</summary>
+        public bool IsEmptyContainer => FirstFocusable() == null;
 
         public void Add(UIElement element)
         {
@@ -57,14 +59,14 @@ namespace DiscoAccess.Core.UI.Nav
 
         public void SetFocusedChild(UIElement? element) => FocusedChild = element;
 
-        /// <summary>First child the navigator may land on (skips non-focusable, and panels with nothing
+        /// <summary>First child the navigator may land on (skips non-focusable, and containers with nothing
         /// focusable inside - descending into an empty one would strand focus on silent structure).</summary>
         public UIElement? FirstFocusable()
         {
             for (int i = 0; i < _children.Count; i++)
             {
                 if (!_children[i].CanFocus) continue;
-                if (_children[i] is Container c && c.IsEmptyPanel) continue;
+                if (_children[i] is Container c && c.IsEmptyContainer) continue;
                 return _children[i];
             }
             return null;
@@ -76,7 +78,7 @@ namespace DiscoAccess.Core.UI.Nav
             for (int i = _children.Count - 1; i >= 0; i--)
             {
                 if (!_children[i].CanFocus) continue;
-                if (_children[i] is Container c && c.IsEmptyPanel) continue;
+                if (_children[i] is Container c && c.IsEmptyContainer) continue;
                 return _children[i];
             }
             return null;
@@ -90,7 +92,11 @@ namespace DiscoAccess.Core.UI.Nav
             int idx = _children.IndexOf(from);
             if (idx < 0) return null;
             for (int i = idx + step; i >= 0 && i < _children.Count; i += step)
-                if (_children[i].CanFocus) return _children[i];
+            {
+                if (!_children[i].CanFocus) continue;
+                if (_children[i] is Container c && c.IsEmptyContainer) continue;
+                return _children[i];
+            }
             return null;
         }
 
