@@ -35,6 +35,21 @@ namespace DiscoAccess.Core.UI.Nav
 
         protected abstract void BuildInitialFocus();
 
+        /// <summary>Recover focus after a dynamic rebuild: if the focused leaf was removed from the tree
+        /// (its parent no longer lists it) or there is none, re-land on the root's first focusable and
+        /// return true so the caller can announce the new focus. Returns false when focus is still valid
+        /// (the common case - a rebuild that did not touch the focused branch).</summary>
+        public bool EnsureFocusValid()
+        {
+            if (Root == null) return false;
+            UIElement? cur = Current;
+            bool orphaned = cur != null && cur.Parent != null && !cur.Parent.Contains(cur);
+            if (cur != null && !orphaned) return false;
+            Path.Clear();
+            BuildInitialFocus();
+            return true;
+        }
+
         /// <summary>Handle a semantic UI action (a <see cref="UiActions"/> key). Returns true if consumed.</summary>
         public abstract bool Handle(string actionKey);
 
@@ -119,6 +134,10 @@ namespace DiscoAccess.Core.UI.Nav
             {
                 Speak(Current.GetFocusText(), interrupt); // ascended: announce the now-innermost focus
             }
+
+            // Focus has settled on a new leaf (this is the one chokepoint every move and the initial
+            // landing pass through): let it sync the platform cursor to our focus.
+            Current?.OnFocused();
         }
 
         /// <summary>Ordered Tab-stops: descend through Panels; a list is one stop (its representative item).</summary>

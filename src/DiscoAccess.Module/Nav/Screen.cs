@@ -20,5 +20,11 @@ namespace DiscoAccess.Module.Nav
 
         /// <summary>Build the navigable tree from live game state. Called on each entry.</summary>
         public abstract Container BuildRoot(IModHost host);
+
+        /// <summary>Called every frame while this screen stands (the view is unchanged). A rich screen
+        /// overrides it to refresh dynamic content in place - rebuilding a sub-tree when the game state it
+        /// mirrors changes (e.g. an options tab switch) and re-homing the navigator. The default does
+        /// nothing, so a static screen needs no per-frame work.</summary>
+        public virtual void OnUpdate(IModHost host, TraditionalNavigator nav) { }
     }
 }

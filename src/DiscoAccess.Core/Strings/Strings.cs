@@ -10,14 +10,8 @@ namespace DiscoAccess.Core.Strings
         public const string ModLoaded = "Disco Elysium access loaded";
         public const string ModuleFailed = "DiscoAccess features failed to load";
 
-        // Focus mode: our keyboard-navigation master switch. On engages our own UI navigation (and mutes
-        // the game's menu input); off hands the keyboard back to the game. Spoken on toggle.
-        public const string FocusModeOn = "focus mode on";
-        public const string FocusModeOff = "focus mode off";
-
         // Input action descriptions: the human-readable name of each bound action, for a keybindings
         // reader to speak. DE names none of these (they are our own controls), so they are authored.
-        public const string InputToggleFocusMode = "Toggle focus mode";
         public const string InputNavigateUp = "Navigate up";
         public const string InputNavigateDown = "Navigate down";
         public const string InputNavigateLeft = "Navigate left";
@@ -32,6 +26,19 @@ namespace DiscoAccess.Core.Strings
         // Control role words, spoken after a control's label so the user knows what it is.
         public const string RoleButton = "button";
         public const string RoleList = "list";
+        public const string RoleTab = "tab";
+
+        // Marks the tab whose content is currently shown (the options screen's Settings/Controls tabs).
+        public const string StatusSelected = "selected";
+
+        // Readable key names for the options Controls tab, which draws each key as an icon image with no
+        // text. Only keys whose icon name is not already readable need an entry; single letters and
+        // function keys (C, F1) are read straight from the sprite name. See the module's KeyGlyph.
+        public const string KeyEscape = "Escape";
+        public const string KeyTab = "Tab";
+        public const string KeyLeftClick = "left click";
+        public const string KeyRightClick = "right click";
+        public const string KeyMouseWheel = "mouse wheel";
 
         // Options screen: control-type words, spoken after the setting name so the user knows the
         // interaction model (adjust, toggle, or open a menu).

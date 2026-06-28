@@ -28,6 +28,10 @@ namespace DiscoAccess.Module.Nav
             yield return new ElementAction(ActionIds.Activate, Activate);
         }
 
+        // Move the game's own cursor to this button as our focus lands, so its selection follows ours
+        // (Select, not Submit, so it only highlights).
+        public override void OnFocused() => GameCursor.Follow(_selectable);
+
         private void Activate()
         {
             // Make this the game's current selection, then run its submit handler (the Enter-key path):

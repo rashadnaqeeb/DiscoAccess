@@ -16,6 +16,10 @@ namespace DiscoAccess.Core.UI.Nav
 
         public IReadOnlyList<UIElement> Children => _children;
 
+        /// <summary>Whether <paramref name="element"/> is a current child (false once a rebuild has cleared
+        /// it, even though its Parent back-pointer still points here).</summary>
+        public bool Contains(UIElement element) => _children.Contains(element);
+
         /// <summary>Remembered focus within this container, for restore on re-entry.</summary>
         public UIElement? FocusedChild { get; private set; }
 

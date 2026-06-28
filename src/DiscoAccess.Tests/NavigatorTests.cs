@@ -141,6 +141,38 @@ namespace DiscoAccess.Tests
             Assert.Equal(1, backs);
         }
 
+        [Fact]
+        public void EnsureFocusValid_NoOp_WhenFocusStillReachable()
+        {
+            var (root, _, items) = MainMenuTree();
+            var nav = NewNav();
+            nav.Attach(root);
+
+            Assert.False(nav.EnsureFocusValid()); // focus intact, nothing to do
+            Assert.Same(items[0], nav.Current);
+        }
+
+        [Fact]
+        public void EnsureFocusValid_Rehomes_WhenFocusOrphanedByRebuild()
+        {
+            var root = new Container(ContainerShape.Panel);
+            var list = new Container(ContainerShape.VerticalList, "settings");
+            list.Add(new Button("A"));
+            list.Add(new Button("B"));
+            root.Add(list);
+            var nav = NewNav();
+            nav.Attach(root);
+            Assert.True(nav.Handle(UiActions.Down)); // focus the second item
+            Assert.Equal("B", nav.Current!.Label);
+
+            // A dynamic rebuild clears the list and refills it, orphaning the focused element.
+            list.Clear();
+            list.Add(new Button("C"));
+
+            Assert.True(nav.EnsureFocusValid()); // orphaned -> re-homed
+            Assert.Equal("C", nav.Current!.Label); // re-landed on the rebuilt list's first focusable
+        }
+
         // A screen root that advertises a back action (Escape closes it).
         private sealed class BackContainer : Container
         {

@@ -14,17 +14,23 @@ using UnityEngine.UI;
 namespace DiscoAccess.Module
 {
     /// <summary>
-    /// The reloadable focus reader, driven each frame by the host pump. Polls DE's NavigationManager for
-    /// the current uGUI selection and, on a change, announces it through the host's speech pipeline
-    /// (navigation interrupts, per the house rule): an options control reads as label, type, value, and
-    /// tooltip via <see cref="OptionAdapter"/>; an Adjust Abilities stat as name, value, grade, and
-    /// description via <see cref="AbilityAdapter"/>; a signature skill portrait as name, value, signature
-    /// marker, and description via <see cref="SkillAdapter"/>; anything else via the generic
-    /// <see cref="FocusReader"/>. It also announces the screen the player just opened, and re-announces
-    /// just the changed part when a focused control changes in place (a slider adjusted, a toggle
-    /// flipped, an ability raised or lowered, a skill set as signature). This is the implementor
-    /// the host loads by interface scan; future dialogue/inventory/world readers and any Harmony patches
-    /// join it here.
+    /// The reloadable UI reader, driven each frame by the host pump. It runs two navigation paths and
+    /// chooses per frame which owns the keyboard (see <see cref="Tick"/>):
+    ///
+    /// The default is our own keyboard navigation, via <see cref="ScreenManager"/>: on any screen with a
+    /// registered <see cref="DiscoAccess.Module.Nav.Screen"/> it takes the keyboard (mutes the game's
+    /// input), builds the screen's tree, and drives the navigator from our own input.
+    ///
+    /// The fallback, for screens not yet migrated to a registered Screen, follows the game's own focus:
+    /// it polls DE's NavigationManager for the current uGUI selection and, on a change, announces it
+    /// (navigation interrupts, per the house rule) - an options control as label, type, value, and
+    /// tooltip via <see cref="OptionAdapter"/>; an Adjust Abilities stat via <see cref="AbilityAdapter"/>;
+    /// a signature skill portrait via <see cref="SkillAdapter"/>; anything else via the generic
+    /// <see cref="FocusReader"/> - and re-announces just the changed part on an in-place change. It also
+    /// announces the screen the player just opened. A modal confirmation/error popup overrides both paths.
+    ///
+    /// This is the implementor the host loads by interface scan; future dialogue/inventory/world readers
+    /// and any Harmony patches join it here, and the focus-follower shrinks as screens migrate.
     /// </summary>
     public sealed class FocusModule : IModModule
     {
@@ -33,8 +39,9 @@ namespace DiscoAccess.Module
         // The keyboard input substrate, owned here so it is rebuilt fresh on each hot-reload (a Core
         // static registry would accumulate duplicate registrations). Holds no native handle.
         private InputManager _input;
-        // Our own UI navigation, driven while focus mode owns the keyboard. The legacy focus-follower
-        // below runs only when focus mode is off, and is being superseded screen by screen.
+        // Our own UI navigation, the default way menus are read. It takes the keyboard on any screen with
+        // a registered Screen; the legacy focus-follower below is the fallback for not-yet-migrated
+        // screens and is being superseded screen by screen.
         private ScreenManager _screens;
         private static readonly InputCategory[] UiCategory = { InputCategory.UI };
         private IntPtr _lastSelected = IntPtr.Zero;
@@ -74,18 +81,9 @@ namespace DiscoAccess.Module
             // Stand up the keyboard input substrate and our UI navigation.
             _input = new InputManager();
             _screens = new ScreenManager(_host);
-            FocusMode.Init(_host);
 
-            // Focus mode (Global): the master switch. On takes the keyboard for our nav; off hands it back.
-            _input.Register("focus.toggle", Strings.InputToggleFocusMode, InputCategory.Global, () =>
-            {
-                FocusMode.Toggle();
-                _host.Speech.Speak(FocusMode.Active ? Strings.FocusModeOn : Strings.FocusModeOff, interrupt: true);
-                if (!FocusMode.Active) _screens.Reset();
-            }).AddBinding(new KeyboardBinding(KeyCode.A, ctrl: true, shift: true));
-
-            // UI navigation keys: live only while focus mode declares the UI category, and routed into the
-            // navigator by the dispatcher below. Directions and Tab auto-repeat while held.
+            // UI navigation keys: live only while our navigator owns the keyboard, and routed into it by
+            // the dispatcher below. Directions and Tab auto-repeat while held.
             _input.Register(UiActions.Up, Strings.InputNavigateUp, InputCategory.UI).AddBinding(new KeyboardBinding(KeyCode.UpArrow)).Repeating();
             _input.Register(UiActions.Down, Strings.InputNavigateDown, InputCategory.UI).AddBinding(new KeyboardBinding(KeyCode.DownArrow)).Repeating();
             _input.Register(UiActions.Left, Strings.InputNavigateLeft, InputCategory.UI).AddBinding(new KeyboardBinding(KeyCode.LeftArrow)).Repeating();
@@ -98,10 +96,12 @@ namespace DiscoAccess.Module
             _input.Register(UiActions.Home, Strings.InputJumpFirst, InputCategory.UI).AddBinding(new KeyboardBinding(KeyCode.Home));
             _input.Register(UiActions.End, Strings.InputJumpLast, InputCategory.UI).AddBinding(new KeyboardBinding(KeyCode.End));
 
-            // The UI category is live only in focus mode; a fired UI key routes into the navigator.
-            _input.ActiveCategoriesProvider = () => FocusMode.Active ? UiCategory : null;
+            // The UI category is live only while our navigator owns the keyboard (a registered screen, no
+            // popup up); a fired UI key then routes into the navigator. Set by the ScreenManager's Tick,
+            // which runs before input is polled.
+            _input.ActiveCategoriesProvider = () => _screens.OwnsKeyboard ? UiCategory : null;
             _input.JustPressedDispatcher = a =>
-                FocusMode.Active && a.Category == InputCategory.UI && _screens.Dispatch(a.Key);
+                _screens.OwnsKeyboard && a.Category == InputCategory.UI && _screens.Dispatch(a.Key);
 
             // Surface any view ScreenAdapter neither names nor silences (e.g. one a game update added),
             // so it is noticed and named rather than going silently unannounced.
@@ -111,27 +111,45 @@ namespace DiscoAccess.Module
 
         public void Tick()
         {
-            // Poll our own keyboard input first, every frame, ungated by the focus reader's early returns
-            // below: a Global hotkey must work no matter what screen or popup is up.
+            // A modal confirmation/error popup (quit, errors, yes/no prompts) runs its own navigation and
+            // needs the game's input; read it first so our navigator stands down (hands the keyboard back)
+            // wherever it appears, including over a registered screen. Read once and reused below.
+            string dialog = ConfirmDialogAdapter.TryRead();
+            bool dialogUp = !string.IsNullOrEmpty(dialog);
+
+            // Resolve keyboard ownership for this frame BEFORE polling input (the UI category gates on it):
+            // our navigator takes the keyboard on a registered screen with no popup; otherwise the game
+            // keeps it for the focus-follower fallback or the popup's own navigation.
+            _screens.Tick(suppressed: dialogUp);
+
+            // Poll our own keyboard input. A Global hotkey fires no matter what screen or popup is up; a
+            // UI key routes into the navigator only while it owns the keyboard.
             _input.Tick(Time.unscaledTime);
 
-            // Focus mode owns the keyboard: reassert the input mutes and drive our own navigation. The
-            // legacy focus-follower below is the focus-mode-off path, superseded screen by screen.
-            if (FocusMode.Active)
+            // The popup owns the frame while up; announce it (and reset the focus dedup on close so the
+            // restored control re-announces).
+            if (TickDialog(dialog))
+                return;
+
+            // Our navigator drove this frame (it announced via the dispatcher); nothing for the
+            // focus-follower to do. Clear its dedup state so a later hand-off to a not-yet-migrated screen
+            // re-announces the screen name and landing control instead of treating frozen state as
+            // already spoken.
+            if (_screens.OwnsKeyboard)
             {
-                FocusMode.Tick();
-                _screens.Tick();
+                _lastScreen = null;
+                _lastSelected = IntPtr.Zero;
                 return;
             }
 
-            // A modal confirmation/error popup (quit, errors, yes/no prompts) runs its own navigation and
-            // sets no focus selection, so the focus poller below cannot see it; catch it here and let it
-            // own the frame while it is open.
-            if (TickDialog())
+            // The view system is not up yet (early boot): the focus-follower below reads
+            // ViewsPagesBridge/NavigationManager, which throw until it is, so stand down for now.
+            if (!_screens.ViewReady)
                 return;
 
-            // A newly opened screen is announced here and opens a short settle window; the focus it
-            // reveals is then skipped until the window expires and spoken once, queued behind the name.
+            // Fallback for not-yet-migrated screens: follow the game's own focus. A newly opened screen is
+            // announced here and opens a short settle window; the focus it reveals is then skipped until
+            // the window expires and spoken once, queued behind the name.
             TickScreen();
 
             // Let the screen's focus settle before reading it (see _screenSettleUntil): skip the focus
@@ -275,9 +293,8 @@ namespace DiscoAccess.Module
         // popup supersedes whatever was being said, so it interrupts like navigation. When it closes, the
         // restored focus is forced to re-announce: the popup set no focus, so the dedup would otherwise
         // leave the user not knowing where they landed.
-        private bool TickDialog()
+        private bool TickDialog(string message)
         {
-            string message = ConfirmDialogAdapter.TryRead();
             if (string.IsNullOrEmpty(message))
             {
                 if (_lastDialogMessage != null)
@@ -341,9 +358,9 @@ namespace DiscoAccess.Module
 
         public void Dispose()
         {
-            // Hand the keyboard back to the game before tearing down, so a reload never leaves
-            // NavigationManager disabled or a view's Escape listener removed.
-            FocusMode.Set(false);
+            // Hand the keyboard back to the game before tearing down, so a reload never leaves InControl
+            // disabled.
+            _screens.HandBack();
             _harmony?.UnpatchSelf();
             _harmony = null;
             _input = null; // owns no native handle; the registration list goes with the dropped context

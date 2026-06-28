@@ -40,8 +40,10 @@ namespace DiscoAccess.Core.UI.Nav
             return false;
         }
 
-        /// <summary>The composed spoken focus message: label, role, value, joined by ", " (non-empty only).</summary>
-        public string GetFocusText()
+        /// <summary>The composed spoken focus message: label, role, value, joined by ", " (non-empty only).
+        /// Virtual so an element with a richer composition (e.g. an options control that also speaks its
+        /// type and tooltip via a Core composer) can override the default label/role/value join.</summary>
+        public virtual string GetFocusText()
         {
             var parts = new List<string>(3);
             if (!string.IsNullOrEmpty(Label)) parts.Add(Label!);
@@ -52,5 +54,10 @@ namespace DiscoAccess.Core.UI.Nav
 
         /// <summary>Just the changed state, for re-announcing after an in-place activation.</summary>
         public string GetValueText() => Value ?? "";
+
+        /// <summary>Called by the navigator when this element becomes the focused leaf after a move. The
+        /// default does nothing; an engine-coupled element overrides it to sync the platform's own cursor
+        /// to our focus, so the game's selection follows ours.</summary>
+        public virtual void OnFocused() { }
     }
 }
