@@ -39,8 +39,7 @@ namespace DiscoAccess.Core.Text
 
         // Fold the Unicode typographic punctuation common in game text (smart dashes, curly quotes,
         // ellipsis) to plain ASCII so it reads cleanly - an em dash in particular is otherwise announced
-        // as "dash" and breaks the flow. (Lines carrying multi-byte characters that Prism would drop are
-        // kept speakable generally by the speech pipeline's parity nudge; see SpeechPipeline.)
+        // as "dash" and breaks the flow.
         private static string FoldPunctuation(string s)
         {
             s = s.Replace('–', '-')   // en dash

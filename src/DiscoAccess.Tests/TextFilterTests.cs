@@ -52,8 +52,8 @@ namespace DiscoAccess.Tests
                 TextFilter.Clean("Full, all voiced\nPsychological, except narration\nClassic, intros only"));
         }
 
-        // Prism rejects some valid multi-byte UTF-8 as InvalidUtf8 by byte position, dropping the whole
-        // line; folding typographic punctuation to ASCII keeps every line speakable (Drama's en dash).
+        // Typographic punctuation is folded to ASCII so it reads cleanly; an em or en dash is otherwise
+        // announced as "dash" and breaks the flow (Drama's en dash).
         [Theory]
         [InlineData("Play the actor. Lie – and detect lies.", "Play the actor. Lie - and detect lies.")]
         [InlineData("dramatic — pause", "dramatic - pause")]
