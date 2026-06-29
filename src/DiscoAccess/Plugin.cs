@@ -2,6 +2,7 @@ using System.IO;
 using BepInEx;
 using BepInEx.Logging;
 using BepInEx.Unity.IL2CPP;
+using DiscoAccess.Core.Settings;
 using DiscoAccess.Core.Speech;
 using DiscoAccess.Core.Strings;
 using DiscoAccess.Dev;
@@ -42,7 +43,11 @@ namespace DiscoAccess
 
             SpeechPipeline.Instance = new SpeechPipeline(_prism);
 
-            var host = new ModHost(Log, SpeechPipeline.Instance);
+            // Settings persist through our BepInEx config file and are owned here (permanent) so they
+            // survive a module hot-reload; the module reads them through IModHost.Settings.
+            var settings = new ModSettings(new BepInExSettingsStore(Config));
+
+            var host = new ModHost(Log, SpeechPipeline.Instance, settings);
 
             string pluginDir = Path.GetDirectoryName(typeof(Plugin).Assembly.Location);
             string modulePath = Path.Combine(pluginDir, "DiscoAccess.Module.dll");

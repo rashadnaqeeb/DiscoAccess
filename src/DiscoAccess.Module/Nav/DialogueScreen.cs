@@ -80,10 +80,14 @@ namespace DiscoAccess.Module.Nav
 
             // Read the current line (the NPC line or forced narration) once each time it changes, queued so
             // nothing is interrupted. A player's chosen response is not a subtitle, so it never lands here.
+            // The Automatically read dialogue setting gates the auto-speak: when off we still mark the line
+            // seen and let the rebuild below land the cursor on it silently, leaving the player to read it on
+            // their own terms (Up re-reads it), but never queue it as the conversation advances.
             string line = CurrentLine();
             if (!string.IsNullOrEmpty(line) && line != _lastSpokenLine)
             {
-                host.Speech.Speak(line, interrupt: false);
+                if (host.Settings.AutoReadDialogue.Value)
+                    host.Speech.Speak(line, interrupt: false);
                 _lastSpokenLine = line;
             }
 

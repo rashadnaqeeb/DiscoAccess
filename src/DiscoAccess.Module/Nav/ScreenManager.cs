@@ -64,6 +64,14 @@ namespace DiscoAccess.Module.Nav
         // the broken screen stays up. Cleared on any successful build.
         private Screen _buildFailed;
 
+        // The mod's own settings menu when open (Ctrl+M), null when closed. A mod overlay floats above the
+        // game and maps to no ViewType, so it is driven ahead of any view or popup; _modMenuAttached gates
+        // its one-time build/announce, and _modMenuWasActive lets the frame after close resume the screen
+        // underneath (re-attach our navigator and re-announce its focus, which the overlay left untouched).
+        private ModMenuScreen _modMenu;
+        private bool _modMenuAttached;
+        private bool _modMenuWasActive;
+
         /// <summary>Whether our navigator is driving a registered screen this frame (lever taken). Set by
         /// <see cref="Tick"/> before input is polled, so the input layer can gate UI keys on it.</summary>
         public bool OwnsKeyboard { get; private set; }
@@ -158,11 +166,47 @@ namespace DiscoAccess.Module.Nav
         /// one-frame hand-back, not a release.</summary>
         public void DeferEscapeToGame() => InControl.InputManager.Enabled = true;
 
+        /// <summary>Open the mod menu if closed, close it if open. Driven by the Ctrl+M global hotkey. The
+        /// open/close takes effect on the next <see cref="Tick"/>.</summary>
+        public void ToggleModMenu()
+        {
+            if (_modMenu != null) _modMenu = null;
+            else _modMenu = new ModMenuScreen();
+        }
+
+        // The overlay's Back action (Escape) closes the menu; the next Tick resumes the screen underneath.
+        private void CloseModMenu() => _modMenu = null;
+
         /// <summary>Resolve the active screen and set keyboard ownership for this frame. Call before
         /// polling input. <paramref name="editEnded"/> means a text edit just committed, so the standing
         /// screen re-reads the focused control once.</summary>
         public void Tick(bool editEnded)
         {
+            // The mod menu floats above everything when open: it owns the keyboard, drives its own navigable
+            // tree, and closes on Escape (or Ctrl+M again). It maps to no game view, so it is resolved before
+            // the view system and the popup overlay. The screen underneath stays attached (untouched) and
+            // resumes when the menu closes.
+            if (_modMenu != null)
+            {
+                InControl.InputManager.Enabled = false; // reasserted each frame, like the screen path
+                _wasOwning = true;
+                OwnsKeyboard = true;
+                if (!_modMenuAttached)
+                {
+                    _nav.Attach(_modMenu.BuildRoot(_host, CloseModMenu));
+                    _host.Speech.Speak(_modMenu.Title, interrupt: true); // supersedes; the landing queues behind
+                    _nav.AnnounceCurrent();
+                    _modMenuAttached = true;
+                }
+                _modMenuWasActive = true;
+                return;
+            }
+            // The menu just closed: the screen under it (if registered) resumes below, re-attaching our
+            // navigator to its root and re-announcing the focus the overlay left untouched but unspoken.
+            bool modMenuJustClosed = _modMenuWasActive;
+            _modMenuWasActive = false;
+            _modMenuAttached = false;
+
             // The popup overlay floats over any view; while up, our navigator drives it ahead of the view's
             // own screen. It needs no view system, so it is resolved before the view-ready gate below. The
             // screen underneath stays attached (_attachedScreen/_baseRoot untouched) so it resumes on close.
@@ -225,23 +269,25 @@ namespace DiscoAccess.Module.Nav
                     _attachedScreen = null;
                     _baseRoot = null;
                 }
+                else if (modMenuJustClosed)
+                    _nav.Attach(null); // menu closed over an unowned view; drop its now-stale tree
                 return;
             }
 
             if (screen == _attachedScreen)
             {
-                // A popup just closed over us: it left our navigator pointed at its own tree, so restore it
-                // to this screen's root (kept intact under the popup) before refreshing and re-announcing.
-                if (popupJustClosed)
+                // A popup or the mod menu just closed over us: it left our navigator pointed at its own tree,
+                // so restore it to this screen's root (kept intact underneath) before refreshing/announcing.
+                if (popupJustClosed || modMenuJustClosed)
                     _nav.Attach(_baseRoot);
 
                 // Refresh the screen's dynamic content FIRST (a rich screen may rebuild its tree and re-home
                 // focus), THEN announce once. Announcing after the update means we read the live focus, not a
                 // cell the rebuild just destroyed, and the single announce avoids double-speaking. Speak when:
-                // a popup just closed over us (focus untouched but unheard), a text edit just committed (hear
-                // the result and landing), or the update re-homed focus this frame.
+                // a popup or the mod menu just closed over us (focus untouched but unheard), a text edit just
+                // committed (hear the result and landing), or the update re-homed focus this frame.
                 bool refocused = screen.OnUpdate(_host, _nav);
-                if (popupJustClosed || editEnded || refocused)
+                if (popupJustClosed || modMenuJustClosed || editEnded || refocused)
                     _nav.AnnounceCurrent();
                 return;
             }
@@ -313,6 +359,9 @@ namespace DiscoAccess.Module.Nav
             _baseRoot = null;
             _popupActive = false;
             _lastPopupMessage = null;
+            _modMenu = null;
+            _modMenuAttached = false;
+            _modMenuWasActive = false;
             _wasOwning = false;
             OwnsKeyboard = false;
         }

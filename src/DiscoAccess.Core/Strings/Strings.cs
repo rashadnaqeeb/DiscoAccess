@@ -23,6 +23,7 @@ namespace DiscoAccess.Core.Strings
         public const string InputJumpFirst = "Jump to first";
         public const string InputJumpLast = "Jump to last";
         public const string InputSecondary = "Secondary action";
+        public const string InputModMenu = "Open mod menu";
 
         // Control role words, spoken after a control's label so the user knows what it is.
         public const string RoleButton = "button";
@@ -175,6 +176,13 @@ namespace DiscoAccess.Core.Strings
         public const string ScreenHelp = "help";
         public const string ScreenThought = "thought";
         public const string ScreenCollage = "collage mode";
+
+        // The mod's own settings menu, opened with Ctrl+M. It maps to no game view, so its name is authored.
+        public const string ScreenModMenu = "mod menu";
+
+        // Mod settings labels, spoken as the setting's name in the mod menu. Authored: these are the mod's
+        // own options, with no game string to read.
+        public const string SettingAutoReadDialogue = "Automatically read dialogue";
 
         // The navigable affordance that advances a conversation when there are no response choices. DE's own
         // continue control is an image with no clean text label, so the word is authored; the player reaches

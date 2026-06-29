@@ -31,6 +31,8 @@ namespace DiscoAccess.Module
         // the navigator from our own input.
         private ScreenManager _screens;
         private static readonly InputCategory[] UiCategory = { InputCategory.UI };
+        // The global mod-menu hotkey's action key (internal id, never spoken).
+        private const string ModMenuAction = "mod.menu";
         // The single source of truth for "a game text field owns the keyboard" (grace-inclusive). While
         // Active, our navigator stands down so keystrokes reach the field; the input dispatcher set up in
         // Load gates on it, as must any future raw-key path (type-ahead). See TextEditGate for the why.
@@ -67,6 +69,13 @@ namespace DiscoAccess.Module
             _input.Register(UiActions.Secondary, Strings.InputSecondary, InputCategory.UI).AddBinding(new KeyboardBinding(KeyCode.Backslash));
             _input.Register(UiActions.Home, Strings.InputJumpFirst, InputCategory.UI).AddBinding(new KeyboardBinding(KeyCode.Home));
             _input.Register(UiActions.End, Strings.InputJumpLast, InputCategory.UI).AddBinding(new KeyboardBinding(KeyCode.End));
+
+            // Ctrl+M opens/closes the mod's settings menu. Global, so it fires anywhere (the world, a game
+            // menu, a conversation); the navigator then drives the overlay through the UI category above. Not
+            // while a game text field owns the keyboard, so it never steals a keystroke from a save-name edit.
+            _input.Register(ModMenuAction, Strings.InputModMenu, InputCategory.Global,
+                () => { if (!_editGate.Active) _screens.ToggleModMenu(); })
+                .AddBinding(new KeyboardBinding(KeyCode.M, ctrl: true));
 
             // The UI category is live only while our navigator owns the keyboard (a registered screen, no
             // popup up); a fired UI key then routes into the navigator. Set by the ScreenManager's Tick,
