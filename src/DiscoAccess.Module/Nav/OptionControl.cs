@@ -110,8 +110,19 @@ namespace DiscoAccess.Module.Nav
         private void StepSlider(int dir)
         {
             Slider sl = Sel.TryCast<Slider>();
+            float start = sl.value;
             float step = sl.wholeNumbers ? 1f : ContinuousStep * (sl.maxValue - sl.minValue);
-            sl.value = Mathf.Clamp(sl.value + dir * step, sl.minValue, sl.maxValue);
+            // The game quantizes some sliders in its own onValueChanged (volume snaps to 10%), so a step
+            // finer than that quantum is rounded straight back and the value never moves - which the
+            // navigator would misread as hitting a bound and announce "minimum"/"maximum". Grow the step
+            // until the value actually changes or we reach a real end, so every press moves the setting.
+            for (float reach = step; ; reach += step)
+            {
+                float target = Mathf.Clamp(start + dir * reach, sl.minValue, sl.maxValue);
+                sl.value = target;
+                if (sl.value != start || target == sl.minValue || target == sl.maxValue)
+                    break;
+            }
         }
 
         private void StepDropdown(int dir)
