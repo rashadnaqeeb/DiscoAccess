@@ -79,7 +79,7 @@ namespace DiscoAccess.Module.Nav
         private Grid BuildSlotGrid()
         {
             const int cols = 3;
-            var grid = new Grid();
+            var grid = new Grid(Strings.ThoughtSlotGridLabel);
             ThoughtSlot[] slots = Slots();
             for (int r = 0; r * cols < slots.Length; r++)
             {

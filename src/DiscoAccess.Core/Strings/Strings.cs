@@ -91,6 +91,10 @@ namespace DiscoAccess.Core.Strings
         public const string ThoughtForgotten = "forgotten";
         public const string ThoughtUnknown = "unknown thought";
 
+        // The twelve thought slots, the first tab-stop of the thought cabinet; spoken as its grid label
+        // when Tab enters it.
+        public const string ThoughtSlotGridLabel = "grid";
+
         // The master list of all thoughts, the second tab-stop of the thought cabinet; spoken as its list
         // label when Tab enters it.
         public const string ThoughtListLabel = "all thoughts";
