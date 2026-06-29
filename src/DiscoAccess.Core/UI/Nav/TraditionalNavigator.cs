@@ -135,6 +135,13 @@ namespace DiscoAccess.Core.UI.Nav
                         Speak(Current.GetValueText(), interrupt: true);
                     return activated;
                 }
+                case UiActions.Secondary:
+                {
+                    // The focused element's secondary/context action (Backslash). Consume only when something
+                    // ran, like Activate.
+                    if (Current == null) return false;
+                    return Current.InvokeAction(ActionIds.Secondary);
+                }
                 case UiActions.Back:
                     // Screen-level back/close: consume only if the root advertises a back action.
                     return Root != null && Root.InvokeAction(ActionIds.Back);

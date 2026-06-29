@@ -72,6 +72,18 @@ namespace DiscoAccess.Core.UI.Nav
         /// <summary>Handle a semantic UI action (a <see cref="UiActions"/> key). Returns true if consumed.</summary>
         public abstract bool Handle(string actionKey);
 
+        /// <summary>Move focus to a specific element (e.g. restoring the grid position after a screen rebuilt
+        /// its content under the cursor). Rebuilds the path to it and syncs the platform cursor; speaks the
+        /// landing only when <paramref name="announce"/> is set (a caller that returns "refocused" to the
+        /// ScreenManager leaves the announce to it, to avoid double-speaking).</summary>
+        public void Focus(UIElement target, bool announce)
+        {
+            var snapshot = new List<UIElement>(Path);
+            BuildPathTo(target);
+            if (announce) AnnounceDelta(snapshot, interrupt: true);
+            else Current?.OnFocused();
+        }
+
         private static readonly List<UIElement> EmptyPath = new List<UIElement>();
 
         /// <summary>Announce the full focus path (screen entry): diff from empty, so container labels plus

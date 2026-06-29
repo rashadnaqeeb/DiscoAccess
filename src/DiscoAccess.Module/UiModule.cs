@@ -61,6 +61,10 @@ namespace DiscoAccess.Module
             _input.Register(UiActions.Activate, Strings.InputActivate, InputCategory.UI)
                 .AddBinding(new KeyboardBinding(KeyCode.Return)).AddBinding(new KeyboardBinding(KeyCode.KeypadEnter));
             _input.Register(UiActions.Back, Strings.InputBack, InputCategory.UI).AddBinding(new KeyboardBinding(KeyCode.Escape));
+            // Backslash: a focused element's secondary/context action (e.g. an item's interact). Kept off
+            // Backspace so it never competes with type-ahead's delete. Not repeating, so a held key does not
+            // fire the context action repeatedly.
+            _input.Register(UiActions.Secondary, Strings.InputSecondary, InputCategory.UI).AddBinding(new KeyboardBinding(KeyCode.Backslash));
             _input.Register(UiActions.Home, Strings.InputJumpFirst, InputCategory.UI).AddBinding(new KeyboardBinding(KeyCode.Home));
             _input.Register(UiActions.End, Strings.InputJumpLast, InputCategory.UI).AddBinding(new KeyboardBinding(KeyCode.End));
 

@@ -22,6 +22,7 @@ namespace DiscoAccess.Core.Strings
         public const string InputBack = "Back";
         public const string InputJumpFirst = "Jump to first";
         public const string InputJumpLast = "Jump to last";
+        public const string InputSecondary = "Secondary action";
 
         // Control role words, spoken after a control's label so the user knows what it is.
         public const string RoleButton = "button";
@@ -191,6 +192,47 @@ namespace DiscoAccess.Core.Strings
 
         /// <summary>Spoken when the typed search buffer matches no item in the focused list.</summary>
         public static string SearchNoMatch(string buffer) => buffer + ", no match";
+
+        // ---- Inventory ----
+
+        // The mod's labels for the equipment-doll slots, the section/list names, and the slot/tab status
+        // words. The slot captions are read live from the game's own "<slot>Tag" labels where present; these
+        // are the fallbacks for when a caption is missing, and DE exposes no list/section names of its own.
+        public const string InventoryEquipmentLabel = "equipped";
+        public const string InventoryTabsLabel = "categories";
+        public const string InventoryItemsLabel = "items";
+        public const string InventoryStatsLabel = "stats";
+        public const string InventoryKeys = "keys";
+        public const string InventoryBullets = "bullets";
+        public const string InventorySlotEmpty = "empty";
+        public const string InventoryNoItems = "no items";
+        public const string InventoryFresh = "new";
+
+        // Fallback equipment-slot captions, keyed off the dock name, used only when the game's own "<slot>Tag"
+        // label is missing.
+        public static string EquipmentSlotName(string dockName)
+        {
+            switch (dockName)
+            {
+                case "hat": return "hat";
+                case "jacket": return "jacket";
+                case "shirt": return "shirt";
+                case "pants": return "pants";
+                case "glasses": return "glasses";
+                case "neck": return "neck";
+                case "gloves": return "gloves";
+                case "shoes": return "shoes";
+                case "heldLeft": return "held left";
+                case "heldRight": return "held right";
+                default: return dockName;
+            }
+        }
+
+        /// <summary>An item's pawn value, spoken in the pawnables tab.</summary>
+        public static string ItemValue(int value) => "value " + value;
+
+        /// <summary>A consumable's remaining uses.</summary>
+        public static string ItemUses(int uses) => uses + (uses == 1 ? " use" : " uses");
 
         /// <summary>A continuous slider's position as a percentage of its travel.</summary>
         public static string Percent(int value) => value + " percent";
