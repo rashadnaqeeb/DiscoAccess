@@ -370,9 +370,19 @@ namespace DiscoAccess.Core.Strings
         public const string WorldUsedRightHand = "used right hand item";
         public const string WorldLeftHandEmpty = "left hand empty";
         public const string WorldRightHandEmpty = "right hand empty";
-        public const string WorldQuickSaved = "quick saved";
         public const string WorldQuickLoading = "quick loading";
         public const string WorldNoQuickSave = "no quick save";
         public const string WorldLanguageChanged = "language changed";
+
+        // ---- Existential crisis: a bar (Health or Morale) hit zero and the game paused for a heal-or-die
+        // window (a 10-second grace), so this is the one notification spoken with interrupt. The bar name and
+        // gameMessage are the game's own localized strings; the heal-key hint is authored, because the heal
+        // window is the unusual, timed control that justifies a key hint (Health heals with Left, Morale with
+        // Right, matching the heal keys). ----
+        public static string CrisisHeal(string barName, bool healWithLeft, string? gameMessage)
+        {
+            string prompt = barName + " critical, press " + (healWithLeft ? "left" : "right") + " arrow to heal";
+            return string.IsNullOrEmpty(gameMessage) ? prompt : prompt + ". " + gameMessage;
+        }
     }
 }

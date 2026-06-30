@@ -37,6 +37,9 @@ namespace DiscoAccess.Module
         // The world hotkeys that act on the game (open screens, status reads, quick-actions), as opposed to
         // the cursor verbs the reader handles.
         private WorldCommands _commands;
+        // Speaks the game's own HUD notifications (money, health/morale changes, items, the timed crisis,
+        // ...) via Harmony feeders drained from the pump. Owns no native handle; its patches ride _harmony.
+        private NotificationReader _notifications;
         private static readonly InputCategory[] UiCategory = { InputCategory.UI };
         // Status precedes UI ON PURPOSE: in a screen that wants the status keys (dialogue) the heal arrows
         // (Status, Left/Right) shadow the inert UI Left/Right; the rest of UI (Up/Down/Tab/Enter/Escape/
@@ -66,6 +69,9 @@ namespace DiscoAccess.Module
             // The world sensing overlay, driven each frame while in the isometric scene.
             _world = new WorldReader(_host);
             _commands = new WorldCommands(_host);
+            // Speak the game's HUD notifications; its Harmony patches register through this load's instance.
+            _notifications = new NotificationReader(_host);
+            _notifications.Apply(_harmony);
 
             // UI navigation keys: live only while our navigator owns the keyboard, and routed into it by
             // the dispatcher below. Directions and Tab auto-repeat while held.
@@ -225,6 +231,10 @@ namespace DiscoAccess.Module
                 if (_input.Held(WorldActions.MoveSouth)) glideZ -= 1f;
             }
             _world.Tick(glideX, glideZ);
+
+            // Speak any HUD notifications the game raised since last frame (the crisis interrupts; the rest
+            // queue). Drained here so they are announced from one place on the pump, like every other readout.
+            _notifications.Drain();
         }
 
         // Dev seam (IDevDriver): drive our navigator from the dev server's /input, the headless counterpart
@@ -253,12 +263,14 @@ namespace DiscoAccess.Module
             // disabled.
             _screens.HandBack();
             _world?.Dispose(); // disengage the overlay (release any audio voices) before the context drops
+            _notifications?.Dispose(); // drop the static back-reference before the patches are removed
             _harmony?.UnpatchSelf();
             _harmony = null;
             _input = null; // owns no native handle; the registration list goes with the dropped context
             _screens = null;
             _world = null;
             _commands = null;
+            _notifications = null;
             _host = null;
         }
     }

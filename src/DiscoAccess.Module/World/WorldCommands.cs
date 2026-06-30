@@ -101,11 +101,9 @@ namespace DiscoAccess.Module.World
             _host.Speech.Speak(used, interrupt: true);
         }
 
-        public void QuickSave()
-        {
-            SunshinePersistence.Singleton.DoQuickSave();
-            _host.Speech.Speak(Strings.WorldQuickSaved, interrupt: false); // queued; never cut the save chime/state
-        }
+        // The game raises its own QuicksaveComplete notification when the save lands, which NotificationReader
+        // speaks, so this only triggers the save (a line here would double-speak it).
+        public void QuickSave() => SunshinePersistence.Singleton.DoQuickSave();
 
         public void QuickLoad()
         {
