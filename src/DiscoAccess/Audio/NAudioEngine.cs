@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.IO;
 using BepInEx.Logging;
 using DiscoAccess.Core.Audio;
 using NAudio.Wave;
@@ -12,8 +14,8 @@ namespace DiscoAccess.Audio
     /// <see cref="WaveOutEvent"/>; every voice (one-shots, wall tones) is an input on that single mixer.
     /// Lives in the permanent host (the device is a native handle) and is lent to the module through
     /// <c>IModHost.Audio</c>. The device opens lazily on first use and self-disables on failure, so a machine
-    /// with no audio device never crashes the mod. Ported from the WOTR exploration mod's NAudio engine,
-    /// with the cues generated procedurally rather than read from WAV assets.
+    /// with no audio device never crashes the mod. Ported from the WOTR exploration mod's NAudio engine; the
+    /// wall tones loop WOTR's set-1 WAV assets, while the one-shot cue is still generated procedurally.
     /// </summary>
     internal sealed class NAudioEngine : IAudioEngine, IDisposable
     {
@@ -23,8 +25,17 @@ namespace DiscoAccess.Audio
         private MixingSampleProvider _mixer;
         private IWavePlayer _out;
         private bool _failed;
+        // The four wall-tone WAVs decoded to mono once and reused across world entries (the overlay disposes
+        // and rebuilds its voices each time it engages, but the samples don't change).
+        private readonly Dictionary<string, float[]> _wallCache = new Dictionary<string, float[]>();
+        private string _wallDir;
 
         public NAudioEngine(ManualLogSource log) { _log = log; }
+
+        // The set-1 wall-tone WAVs deploy beside this assembly under assets/audio/walltones/1.
+        private string WallDir => _wallDir ??= Path.Combine(
+            Path.GetDirectoryName(typeof(NAudioEngine).Assembly.Location) ?? ".",
+            "assets", "audio", "walltones", "1");
 
         public bool Available => !_failed;
 
@@ -69,6 +80,62 @@ namespace DiscoAccess.Audio
         {
             if (!EnsureStarted()) return;
             _mixer.AddMixerInput(new ToneShot(Rate, frequency, seconds, volume, pan));
+        }
+
+        // Decode a wall-tone WAV to a mono float[] at the mixer rate, cached. A load failure logs and yields
+        // an empty buffer (that direction goes silent) rather than crashing the audio thread.
+        private float[] LoadMono(string path)
+        {
+            if (_wallCache.TryGetValue(path, out float[] cached)) return cached;
+            float[] buf;
+            try { buf = DecodeMono(path); }
+            catch (Exception e)
+            {
+                _log?.LogWarning("[audio] wall tone load failed (" + path + "): " + e.Message);
+                buf = Array.Empty<float>();
+            }
+            _wallCache[path] = buf;
+            return buf;
+        }
+
+        private static float[] DecodeMono(string path)
+        {
+            using (var reader = new AudioFileReader(path))
+            {
+                ISampleProvider sp = reader;
+                if (sp.WaveFormat.SampleRate != Rate) sp = new WdlResamplingSampleProvider(sp, Rate);
+                int channels = sp.WaveFormat.Channels;
+
+                // Read the whole stream in blocks, growing one buffer with Array.Copy (no per-sample work, so
+                // the one-time decode at world entry doesn't hitch the frame).
+                var interleaved = new float[Rate * channels];
+                int filled = 0;
+                var tmp = new float[Rate * channels];
+                int n;
+                while ((n = sp.Read(tmp, 0, tmp.Length)) > 0)
+                {
+                    if (filled + n > interleaved.Length)
+                        Array.Resize(ref interleaved, Math.Max(interleaved.Length * 2, filled + n));
+                    Array.Copy(tmp, 0, interleaved, filled, n);
+                    filled += n;
+                }
+
+                if (channels == 1)
+                {
+                    Array.Resize(ref interleaved, filled);
+                    return interleaved;
+                }
+                int frames = filled / channels;
+                var mono = new float[frames];
+                for (int f = 0; f < frames; f++)
+                {
+                    float s = 0f;
+                    int b = f * channels;
+                    for (int c = 0; c < channels; c++) s += interleaved[b + c];
+                    mono[f] = s / channels;
+                }
+                return mono;
+            }
         }
 
         public IWallTones CreateWallTones() { EnsureStarted(); return new WallTones(this); }
@@ -122,53 +189,50 @@ namespace DiscoAccess.Audio
             }
         }
 
-        // Four continuous oscillators, a distinct pitch per direction (so north and south, both centred,
-        // stay distinguishable) at a fixed compass pan (east hard right, west hard left), summed to stereo
-        // as ONE mixer input. Volumes are set live each frame; the phase advances regardless so a voice
-        // coming back up is click-free.
+        // Four looping mono WAV channels (WOTR's set-1 wall tones) summed to stereo at a fixed compass pan
+        // (east hard right, west hard left, north/south centred), added as ONE mixer input. Volumes are set
+        // live each frame; each channel loops seamlessly so a voice coming back up is click-free.
         private sealed class WallTones : ISampleProvider, IWallTones
         {
-            private sealed class Voice
+            private sealed class Channel
             {
-                public double Phase;
+                public float[] Buffer = Array.Empty<float>();
+                public int Pos;
                 public volatile float Volume;
-                public float Freq;
                 public float L = 0.70710677f, R = 0.70710677f;
             }
 
-            private readonly Voice[] _voices;
+            private readonly Channel[] _channels;
             private readonly NAudioEngine _engine;
-            private readonly int _rate;
 
             public WaveFormat WaveFormat { get; }
 
             public WallTones(NAudioEngine engine)
             {
                 _engine = engine;
-                _rate = Rate;
                 WaveFormat = WaveFormat.CreateIeeeFloatWaveFormat(Rate, 2);
-                _voices = new[]
+                _channels = new[]
                 {
-                    Make(620f, 0f),   // N: centred, high
-                    Make(300f, 0f),   // S: centred, low
-                    Make(440f, 1f),   // E: hard right
-                    Make(440f, -1f),  // W: hard left
+                    Make(engine, "north.wav", 0f),   // N: centred
+                    Make(engine, "south.wav", 0f),   // S: centred
+                    Make(engine, "east.wav", 1f),    // E: hard right
+                    Make(engine, "west.wav", -1f),   // W: hard left
                 };
                 engine.Add(this);
             }
 
-            private static Voice Make(float freq, float pan)
+            private static Channel Make(NAudioEngine engine, string file, float pan)
             {
                 PanGains(pan, out float l, out float r);
-                return new Voice { Freq = freq, L = l, R = r };
+                return new Channel { Buffer = engine.LoadMono(Path.Combine(engine.WallDir, file)), L = l, R = r };
             }
 
             public void Update(float[] volumes)
             {
-                for (int i = 0; i < _voices.Length && i < volumes.Length; i++)
+                for (int i = 0; i < _channels.Length && i < volumes.Length; i++)
                 {
                     float v = volumes[i];
-                    _voices[i].Volume = v < 0f ? 0f : (v > 1f ? 1f : v);
+                    _channels[i].Volume = v < 0f ? 0f : (v > 1f ? 1f : v);
                 }
             }
 
@@ -178,18 +242,16 @@ namespace DiscoAccess.Audio
                 for (int f = 0; f < frames; f++)
                 {
                     float l = 0f, r = 0f;
-                    for (int i = 0; i < _voices.Length; i++)
+                    for (int i = 0; i < _channels.Length; i++)
                     {
-                        Voice v = _voices[i];
-                        float vol = v.Volume;
-                        if (vol > 0f)
-                        {
-                            float s = (float)Math.Sin(v.Phase * 2.0 * Math.PI) * vol;
-                            l += s * v.L;
-                            r += s * v.R;
-                        }
-                        v.Phase += v.Freq / _rate;
-                        if (v.Phase >= 1.0) v.Phase -= 1.0;
+                        Channel c = _channels[i];
+                        int len = c.Buffer.Length;
+                        if (len == 0) continue;
+                        float s = c.Buffer[c.Pos] * c.Volume;
+                        c.Pos++;
+                        if (c.Pos >= len) c.Pos = 0; // seamless loop
+                        l += s * c.L;
+                        r += s * c.R;
                     }
                     buffer[offset + f * 2] = l > 1f ? 1f : (l < -1f ? -1f : l);
                     buffer[offset + f * 2 + 1] = r > 1f ? 1f : (r < -1f ? -1f : r);

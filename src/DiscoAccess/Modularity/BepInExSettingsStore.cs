@@ -15,6 +15,7 @@ namespace DiscoAccess.Modularity
         private const string Section = "Settings";
         private readonly ConfigFile _config;
         private readonly Dictionary<string, ConfigEntry<bool>> _bools = new Dictionary<string, ConfigEntry<bool>>();
+        private readonly Dictionary<string, ConfigEntry<int>> _ints = new Dictionary<string, ConfigEntry<int>>();
 
         public BepInExSettingsStore(ConfigFile config) => _config = config;
 
@@ -28,8 +29,22 @@ namespace DiscoAccess.Modularity
             return entry;
         }
 
+        private ConfigEntry<int> BindInt(string key, int defaultValue)
+        {
+            if (!_ints.TryGetValue(key, out ConfigEntry<int> entry))
+            {
+                entry = _config.Bind(Section, key, defaultValue);
+                _ints[key] = entry;
+            }
+            return entry;
+        }
+
         public bool GetBool(string key, bool defaultValue) => Bind(key, defaultValue).Value;
 
         public void SetBool(string key, bool value) => Bind(key, value).Value = value;
+
+        public int GetInt(string key, int defaultValue) => BindInt(key, defaultValue).Value;
+
+        public void SetInt(string key, int value) => BindInt(key, value).Value = value;
     }
 }

@@ -57,6 +57,8 @@
     </PropertyGroup>
     <ItemGroup>
       <_DeployDll Include="$(TargetDir)*.dll" />
+      <!-- WOTR's set-1 wall-tone WAVs; the engine resolves them at assets/audio/walltones/1 beside the plugin. -->
+      <_WallToneAsset Include="$(RepoRoot)assets\audio\walltones\1\*.wav" />
     </ItemGroup>
     <MakeDir Directories="$(PluginDeployDir)" />
     <!-- Retries=0: when iterating with the game running, the host/Roslyn DLLs are locked; fail fast
@@ -66,6 +68,9 @@
           DestinationFolder="$(PluginDeployDir)" ContinueOnError="true" Retries="0" />
     <Copy SourceFiles="$(RepoRoot)third_party\prism\prism.dll"
           DestinationFolder="$(GameDir)" SkipUnchangedFiles="true" ContinueOnError="true" />
+    <Copy SourceFiles="@(_WallToneAsset)"
+          DestinationFolder="$(PluginDeployDir)\assets\audio\walltones\1"
+          SkipUnchangedFiles="true" ContinueOnError="true" />
     <Message Importance="high" Text="DiscoAccess deployed -> $(PluginDeployDir)" />
   </Target>
 

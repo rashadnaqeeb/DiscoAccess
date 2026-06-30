@@ -21,6 +21,7 @@ namespace DiscoAccess.Tests
             public Vector3 PlayerPosition => Player;
             public bool HasControl => Control;
             public Vector3 TraceMove(Vector3 from, Vector3 intended) => Wall ?? intended;
+            public float WallDistance(Vector3 from, Vector3 direction, float range) => range; // open in every direction
         }
 
         private sealed class FakeBackend : ISpeechBackend

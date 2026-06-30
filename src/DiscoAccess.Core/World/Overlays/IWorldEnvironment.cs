@@ -22,5 +22,11 @@ namespace DiscoAccess.Core.World.Overlays
         /// walkable ground: returns the intended point snapped/short-stopped to the navmesh so the cursor
         /// can't leave the floor. The Module backs this with the game's navmesh queries.</summary>
         Vector3 TraceMove(Vector3 from, Vector3 intended);
+
+        /// <summary>Planar (XZ) distance in metres from <paramref name="from"/> to the first navmesh boundary
+        /// along the unit <paramref name="direction"/>, capped at <paramref name="range"/> (returns
+        /// <paramref name="range"/> when no wall stands within range). Backs the wall-tone proximity
+        /// volume; the Module casts the game's navmesh.</summary>
+        float WallDistance(Vector3 from, Vector3 direction, float range);
     }
 }

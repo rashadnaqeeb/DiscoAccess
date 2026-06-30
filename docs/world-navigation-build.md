@@ -2,8 +2,8 @@
 
 The infrastructure for world navigation, ported from the WOTR accessibility mod and adapted to
 DiscoAccess's architecture. This is the build record and decision log; the feasibility findings that
-preceded it are in `world-navigation-scouting.md`. The leaf features that sit on this foundation
-(sonar, wall tones, the scanner) are not built yet (see Deferred, below).
+preceded it are in `world-navigation-scouting.md`. The first leaf feature that sits on this foundation,
+**wall tones**, is now built; the other two (sonar and the scanner) are not yet (see Deferred, below).
 
 Everything here was validated live in Martinaise via the dev server, and the implementation was audited
 line-by-line against the WOTR source; the divergences recorded below are deliberate.
@@ -16,10 +16,11 @@ ground so it cannot leave the floor; press Enter to walk the character to the th
 interact (a conversation, a container, an exit) or to bare ground; and reach the game's information
 screens, the pause and help menus, the status readouts (time, money, health), and the gameplay
 quick-actions through the world keymap. The navigation model below is wired: being in the world owns the
-keyboard the same way a migrated menu does. Underneath, a live registry classifies every entity in the
-area and filters it down to the actionable set, and an audio engine can place stereo cues. What is still
-missing to make the world fully legible is the leaf sensing systems (the sonar, wall tones, the scanner)
-that turn the registry and the audio engine into a sense of what surrounds the cursor.
+keyboard the same way a migrated menu does. **Wall tones** sound the nearest walls in the four cardinals
+around the cursor, so the player hears the room's edges as they glide. Underneath, a live registry
+classifies every entity in the area and filters it down to the actionable set, and an audio engine places
+stereo cues. What is still missing to make the world fully legible are the remaining leaf sensing systems
+(the sonar and the scanner) that turn the registry into a sense of what surrounds the cursor.
 
 ## Architecture
 
@@ -68,10 +69,15 @@ Core overlay framework (`Core/World/Overlays/`):
   while the player has control), tracks motion, and runs the announce pipeline that joins every system's
   contribution into one spoken line.
 - `Cursor` is the freeform-glide point of attention, navmesh-clamped through the environment seam.
-- `IWorldEnvironment` is the engine seam the framework reads (player position, control state, navmesh
-  trace). `MotionTracker`, `OverlayContext`, `OverlayAnnouncement`, `PlayMode`, and `AnnouncementContext`
-  round it out.
-- `SpatialSystem` (under `Overlays/Systems/`) is the first concrete system: the cursor point readout.
+- `IWorldEnvironment` is the engine seam the framework reads (player position, control state, the navmesh
+  glide-clamp, and `WallDistance`, a cardinal navmesh cast for the wall tones). `MotionTracker`,
+  `OverlayContext`, `OverlayAnnouncement`, `PlayMode`, and `AnnouncementContext` round it out.
+- `SpatialSystem` (under `Overlays/Systems/`) is the cursor point readout (bearing, distance, height).
+- `WallToneSystem` (under `Overlays/Systems/`) is the first audio leaf: each frame it casts the navmesh in
+  the four cardinals from the cursor and turns each distance-to-wall into a 0..1 volume on the
+  `Spatial.ProximityVolume` curve, then drives the engine's four wall-tone voices. It mutes (zeroing the
+  volumes, keeping the voices) when the play gate is closed, control is lost, or a menu owns input over the
+  world (`Overlay.InputActive`). Its volume and play mode are read live through bound providers.
 
 Core audio contract (`Core/Audio/`):
 
@@ -89,10 +95,11 @@ Core world-model contracts (`Core/World/`):
 
 Host audio (`DiscoAccess/Audio/`):
 
-- `NAudioEngine` is one shared mixer feeding one output device. Cues are generated procedurally (a
-  windowed sine one-shot with constant-power pan; four continuous oscillators at distinct pitches and
-  fixed compass pan for wall tones), so no authored sound assets are needed yet. The device opens lazily
-  and self-disables on failure, so a machine with no audio device never crashes the mod.
+- `NAudioEngine` is one shared mixer feeding one output device. The wall tones loop WOTR's set-1 WAV
+  assets (north/south/east/west, decoded once and cached, summed at fixed compass pan: east hard right,
+  west hard left, north/south centred); the one-shot cue is still a procedural windowed sine with
+  constant-power pan. The device opens lazily and self-disables on failure, so a machine with no audio
+  device never crashes the mod. The WAVs deploy beside the plugin under `assets/audio/walltones/1`.
 
 Module world layer (`Module/World/`):
 
@@ -105,7 +112,18 @@ Module world layer (`Module/World/`):
   `Interactable` subclass tree via `TryCast`; orbs read `GetText` and `orbType`. `WorldConvert`
   centralizes the Unity to System.Numerics conversion.
 - `WorldReader` owns the one overlay, engages it on entering the world and disengages on leaving, and
-  ticks both the registry and the overlay each frame. It is wired into `UiModule`.
+  ticks both the registry and the overlay each frame. It constructs the `WallToneSystem` (binding its play
+  mode to the continuous-wall-tones setting and its volume to the wall-tone-volume setting) and sets
+  `Overlay.InputActive` each frame so the tones mute when a menu owns input over the world. It is wired
+  into `UiModule`.
+
+The world settings (`Core/Settings/`): wall tones are the first world system with a settings UI. A numeric
+`RangeSetting` (a 0..100 percent with a step, alongside the existing `ToggleSetting`, both under a shared
+`ModSetting` base the menu lists in order) backs the **wall tone volume** (default 5%, deliberately low so
+the tones sit under speech), and a `ToggleSetting` backs **continuous wall tones** (default off: tones play
+only while the cursor glides plus the motion linger; on: always while in the world). The settings store
+gained int persistence, and `ModMenuScreen` renders each setting by type (`SettingToggleCell` /
+`SettingRangeCell`).
 
 ## Key decisions
 
@@ -145,11 +163,22 @@ entity set present, while `LOBBY` reads false in-world. The code-review pass fla
 and the gate comment records why so it is not re-flagged. `HasControl` (a character exists and no
 conversation is active) gates the finer cutscene/dialogue case on top.
 
-Audio is NAudio via NuGet, host-side, procedural for now. The scouting notes established we must compute
-pan and volume ourselves and stay off the game's mixer, so the cues are not colored by its DSP. NAudio
-is the WOTR-proven choice and runs on BepInEx's CoreCLR. Cues are generated tones rather than sampled
-WAVs, so the backbone is self-contained; sonar can pick a per-category pitch now and move to sampled
-audio when assets are authored.
+Audio is NAudio via NuGet, host-side. The scouting notes established we must compute pan and volume
+ourselves and stay off the game's mixer, so the cues are not colored by its DSP. NAudio is the WOTR-proven
+choice and runs on BepInEx's CoreCLR. The wall tones use WOTR's authored set-1 WAVs (the user's choice, to
+keep the same feel); the sonar one-shot is still a generated tone and can move to sampled audio when
+per-category assets are authored.
+
+Wall tones port WOTR's math, in metres. The proximity-volume curve (`(1 - dist/range)^2`, biting close in)
+and the 0.25s motion linger were already ported with the framework; the system adds the cardinal navmesh
+cast and the voice driving. The sense range is WOTR's 10 ft converted exactly to 3.048 m, so the curve
+bites at the same physical distance and the soundscape feels identical. The play mode maps onto the
+existing three-way `PlayMode`: continuous-on is `Continuous`, continuous-off is `WhenMoving` (the motion
+linger is the "x ms after stop"). The default volume is 5% (an ambient bed under speech, not a foreground
+cue), diverging from WOTR's 100% on purpose. Muting is gated on three things, not just lost control: the
+play gate, `HasControl` (cutscene/conversation), and `Overlay.InputActive` (a menu floating over the
+in-world view, where the game still reads CLEAR but the overlay is no longer driven) — the last closes the
+gap where continuous tones would otherwise drone under the mod menu.
 
 A flat taxonomy. WOTR has a two-level category tree. Disco's smaller world gets a flat set
 (npc/door/exit/container/orb/other); the "what does the sonar sonify" toggle maps onto these. The
@@ -377,14 +406,14 @@ These are real forks left open on purpose, not oversights.
   poll the working menu keys do. Worth a sighted confirmation pass on a focused window.
 - The dedicated map key. The map has no standalone view (it is a journal sub-page), so a Ctrl+M map key
   would need cross-frame sub-page navigation; dropped, since the map is reachable through Ctrl+J's journal.
-- The leaf sensing systems: the sonar sweep, wall tones as a real system, and the scanner / review
-  cursor. The infrastructure is shaped for them; they are the next features. The sonar must suppress
-  out-of-sight things (those behind a wall from the cursor), or it is annoying; the gate is a navmesh
-  line-of-sight raycast from the cursor to the thing's nearest point, added to the environment seam when
-  the sonar is built. When the wall-tone system lands it must mute on loss of control (zero the volumes,
-  keep the voices) rather than going silent abruptly.
-- The settings-menu wiring for the world systems (the per-system on/off and "what does the sonar
-  sonify" category toggles).
+- The remaining leaf sensing systems: the sonar sweep and the scanner / review cursor. The infrastructure
+  is shaped for them; they are the next features. The sonar must suppress out-of-sight things (those behind
+  a wall from the cursor), or it is annoying; the gate is a navmesh line-of-sight raycast from the cursor to
+  the thing's nearest point, added to the environment seam when the sonar is built. (Wall tones, the first
+  leaf, are now built; they mute on loss of control and under a menu, zeroing the volumes while keeping the
+  voices, per the requirement noted here originally.)
+- The remaining settings-menu wiring for the world systems (the sonar's on/off and "what does the sonar
+  sonify" category toggles). The wall tones' volume and continuous/when-moving toggle are wired.
 - Sampled audio assets, if the procedural cues prove insufficient.
 - Bounds refinement: doorway segments and footprint circles. Every proxy currently reports a point
   bound; the richer shapes exist in `ScanBounds` but are not yet wired to the proxies.
@@ -401,5 +430,10 @@ Loaded into the Whirling-in-Rags backyard: the registry classified about 420 ent
 matching the scouting probe, 9 NPCs, 6 exits, about 21 orbs), and `IsAccessible` filtered them to about
 104 actionable. The cursor glided navmesh-clamped (stopping at a fence about 4 meters out, not running
 to infinity) and recenter snapped it back to the character. Readouts spoke correct bearings and
-distances. The audio device opened and played panned one-shots and wall tones with no error. 184 unit
+distances. The audio device opened and played panned one-shots and wall tones with no error.
+
+With the wall-tone leaf since built, a later live pass in the same area confirmed the mod loads clean, the
+set-1 WAVs decode at the deployed path, and the volume and continuous settings read their defaults and
+persist; the system drives its voices each frame with no pump exceptions. Actual audibility and the
+held-glide-while-moving OS-key path still want a sighted/hearing confirmation on a focused window. 205 unit
 tests pass.

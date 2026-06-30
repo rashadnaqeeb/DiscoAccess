@@ -1,5 +1,6 @@
 using System;
 using DiscoAccess.Core.Modularity;
+using DiscoAccess.Core.Settings;
 using DiscoAccess.Core.Strings;
 using DiscoAccess.Core.UI.Nav;
 
@@ -20,8 +21,14 @@ namespace DiscoAccess.Module.Nav
         {
             var root = new OverlayRoot(onClose);
             var list = new Container(ContainerShape.VerticalList);
-            foreach (var setting in host.Settings.Toggles)
-                list.Add(new SettingToggleCell(setting));
+            foreach (var setting in host.Settings.All)
+            {
+                switch (setting)
+                {
+                    case ToggleSetting toggle: list.Add(new SettingToggleCell(toggle)); break;
+                    case RangeSetting range: list.Add(new SettingRangeCell(range)); break;
+                }
+            }
             root.Add(list);
             return root;
         }

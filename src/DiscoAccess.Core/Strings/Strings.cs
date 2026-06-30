@@ -215,6 +215,8 @@ namespace DiscoAccess.Core.Strings
         // Mod settings labels, spoken as the setting's name in the mod menu. Authored: these are the mod's
         // own options, with no game string to read.
         public const string SettingAutoReadDialogue = "Automatically read dialogue";
+        public const string SettingWallToneVolume = "Wall tone volume";
+        public const string SettingWallTonesContinuous = "Continuous wall tones";
 
         // The navigable affordance that advances a conversation when there are no response choices. DE's own
         // continue control is an image with no clean text label, so the word is authored; the player reaches
@@ -324,6 +326,7 @@ namespace DiscoAccess.Core.Strings
 
         // The world sensing systems' names, spoken in the settings menu. Authored (the mod's own systems).
         public const string WorldSystemSpatial = "cursor position";
+        public const string WorldSystemWallTones = "wall tones";
 
         // The walk-then-interact verb's spoken feedback. The mod authors these (DE has no equivalent line):
         // committing a walk, the bare-ground walk with no target, the reachability refusal, and the cancel.

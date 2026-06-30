@@ -40,6 +40,7 @@ namespace DiscoAccess.Module.World
         private readonly IAudioEngine _audio;
         private readonly Overlay _overlay;
         private readonly SpatialSystem _spatial;
+        private readonly WallToneSystem _wallTones;
         private readonly WorldModel _model = new WorldModel();
         private readonly WalkInteract _walk;
         private bool _engaged;
@@ -55,11 +56,18 @@ namespace DiscoAccess.Module.World
         {
             _host = host;
             _audio = host.Audio;
-            _overlay = new Overlay(new WorldEnvironment(), host.Speech);
+            var env = new WorldEnvironment();
+            _overlay = new Overlay(env, host.Speech);
             _spatial = new SpatialSystem();
             // Until the settings menu wires the world systems, the cursor readout is simply on.
             _spatial.BindMode(() => PlayMode.Continuous);
             _overlay.With(_spatial);
+            // Wall tones: continuous when the player chose it, else only while the cursor is gliding (and the
+            // brief linger after). The same env backs the cursor clamp and the wall-distance cast.
+            _wallTones = new WallToneSystem(env, _audio);
+            _wallTones.BindMode(() => host.Settings.WallTonesContinuous.Value ? PlayMode.Continuous : PlayMode.WhenMoving);
+            _wallTones.BindVolume(() => host.Settings.WallToneVolume.Fraction);
+            _overlay.With(_wallTones);
             _walk = new WalkInteract(host);
             Active = this;
         }
@@ -106,11 +114,14 @@ namespace DiscoAccess.Module.World
 
             float dt = Time.unscaledDeltaTime;
             _model.Tick(dt); // the sonar/scanner data layer, kept current whether or not we drive
+            // The audio systems mute when we aren't the live keyboard owner (a conversation, a cutscene, or a
+            // menu floating over the in-world view); they keep their voices and resume on return.
+            _overlay.InputActive = _ownsKeyboard;
 
             if (!_ownsKeyboard)
             {
-                // In the world but not driving (a conversation or cutscene: CLEAR without control). Keep the
-                // systems and motion tracking current without moving the cursor.
+                // In the world but not driving (a conversation or cutscene, or a menu over the world). Keep the
+                // systems and motion tracking current without moving the cursor; the audio mutes via InputActive.
                 _overlay.Tick(dt, 0f, 0f, 0f);
                 _wasGliding = false;
                 return;

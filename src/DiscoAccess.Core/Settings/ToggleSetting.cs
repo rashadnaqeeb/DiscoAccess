@@ -6,24 +6,17 @@ namespace DiscoAccess.Core.Settings
     /// it is legitimately held (the "never cache game state" rule is about game data). Feature code reads
     /// <see cref="Value"/>; the settings menu flips it with <see cref="Toggle"/>.
     /// </summary>
-    public sealed class ToggleSetting
+    public sealed class ToggleSetting : ModSetting
     {
         private readonly ISettingsStore _store;
-
-        /// <summary>Stable persistence key (never spoken), e.g. "auto_read_dialogue".</summary>
-        public string Key { get; }
-
-        /// <summary>Authored, spoken label.</summary>
-        public string Label { get; }
 
         public bool DefaultValue { get; }
 
         public bool Value { get; private set; }
 
         public ToggleSetting(string key, string label, bool defaultValue, ISettingsStore store)
+            : base(key, label)
         {
-            Key = key;
-            Label = label;
             DefaultValue = defaultValue;
             _store = store;
             Value = store.GetBool(key, defaultValue);

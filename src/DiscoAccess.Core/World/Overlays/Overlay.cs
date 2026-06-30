@@ -29,6 +29,12 @@ namespace DiscoAccess.Core.World.Overlays
         /// not playing) — systems read it to decide what to suppress.</summary>
         public bool HasControl => _env.HasControl;
 
+        /// <summary>Whether the world is the live keyboard owner this frame, set by the world reader. False
+        /// when a menu or popup floats over the world (the game view still reads in-world, but the overlay is
+        /// no longer being driven), so audio systems mute rather than droning under the menu. Defaults true so
+        /// a directly-driven overlay (tests, dev hooks) plays.</summary>
+        public bool InputActive { get; set; } = true;
+
         public Overlay(IWorldEnvironment env, SpeechPipeline speech)
         {
             _env = env;

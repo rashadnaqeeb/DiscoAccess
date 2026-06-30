@@ -43,6 +43,20 @@ namespace DiscoAccess.Module.World
             return intended;
         }
 
+        /// <summary>Distance to the first navmesh boundary along a cardinal, for the wall tones: cast a
+        /// navmesh ray out to <paramref name="range"/> and measure the planar gap to the hit, or report
+        /// <paramref name="range"/> (no wall, silent) when the ray reaches the end unobstructed. The cursor is
+        /// navmesh-clamped, so an off-mesh origin (where Raycast would misbehave) does not arise in play.</summary>
+        public float WallDistance(Snv from, Snv direction, float range)
+        {
+            Vector3 f = WorldConvert.ToUnity(from);
+            Vector3 t = WorldConvert.ToUnity(from + direction * range);
+            if (!NavMesh.Raycast(f, t, out NavMeshHit hit, AllAreas))
+                return range;
+            float dx = hit.position.x - f.x, dz = hit.position.z - f.z;
+            return Mathf.Sqrt(dx * dx + dz * dz);
+        }
+
         // NavMesh.AllAreas (-1, every area in the mask); the const isn't surfaced on the interop proxy.
         private const int AllAreas = -1;
 
