@@ -65,9 +65,12 @@ namespace DiscoAccess.Module.Nav
             _host = host;
             // A player line the game is holding for a continue is the player's own choice echoed as a
             // subtitle (we do not read it back); advancing it manually has no payoff and stalls the reader
-            // silently, so auto-advance past it to the line that follows. Fire once per such line.
+            // silently, so auto-advance past it to the line that follows. Fire once per such line, and only
+            // once its sequence has finished: a continue sent mid-sequence fast-forwards the line instead of
+            // advancing, spending our single continue without moving on and wedging the conversation.
             Subtitle sub = DialogueAdapter.State()?.subtitle;
-            if (sub != null && sub.speakerInfo != null && sub.speakerInfo.isPlayer && DialogueAdapter.ContinueAvailable())
+            if (sub != null && sub.speakerInfo != null && sub.speakerInfo.isPlayer
+                && DialogueAdapter.ContinueAvailable() && !DialogueAdapter.SequencePlaying())
             {
                 string playerLine = sub.formattedText != null ? sub.formattedText.text : null;
                 if (playerLine != _autoContinuedLine)

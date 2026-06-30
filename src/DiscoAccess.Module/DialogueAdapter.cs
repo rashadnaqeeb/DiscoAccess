@@ -65,6 +65,17 @@ namespace DiscoAccess.Module
         /// runs the same path the on-screen continue button would).</summary>
         public static void Continue() => Logger()?.continueButton?.WasClicked();
 
+        /// <summary>Whether the current line's sequence is still playing. A continue sent while the
+        /// sequence runs fast-forwards the line (the game's continue handler calls Sequencer.Stop)
+        /// instead of advancing to the next entry, so an auto-advance must wait for this to be false or
+        /// its single continue is spent on the fast-forward and the conversation wedges.</summary>
+        public static bool SequencePlaying()
+        {
+            ConversationView view = DialogueManager.conversationView;
+            Sequencer seq = view != null ? view.sequencer : null;
+            return seq != null && seq.IsPlaying;
+        }
+
         /// <summary>Choose a player response by clicking its own on-screen button, the game's real click
         /// path. For a skill check that runs the full pipeline - rolls the dice, locks a white check, plays
         /// the dice animation, and records the result on the outcome line - which the bare
