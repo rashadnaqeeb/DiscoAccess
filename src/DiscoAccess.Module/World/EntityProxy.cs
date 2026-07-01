@@ -87,11 +87,11 @@ namespace DiscoAccess.Module.World
 
         // The game's authored display name for this thing, resolved live per type: an exit reads the localized
         // DESTINATION it leads to (so the player hears where a door goes, "Whirling-in-Rags"); everything else
-        // reads the actor that voices its own examine description (see SelfDescribedActorName). An exit uses the
-        // destination, not that description actor - an exit's examine can be narrated from the far side (a tent
+        // reads the actor a sighted player sees as its examine header (see ExamineHeaderActor). An exit uses the
+        // destination, not that header actor - an exit's examine can be narrated from the far side (a tent
         // flap whose description speaks as Andre), which would misname the door.
         private string AuthoredName()
-            => Category == WorldTaxonomy.Exit ? ExitDestination() : SelfDescribedActorName();
+            => Category == WorldTaxonomy.Exit ? ExitDestination() : ExamineHeaderActor();
 
         // What an exit's destination is called: its distinct localized area name when that differs from where
         // you are (another building, or a floor with its own name like "Bookstore"), else the floor/level word
@@ -112,31 +112,45 @@ namespace DiscoAccess.Module.World
             return EntityNaming.ExitDestinationLabel(area, destName, curName);
         }
 
-        // The actor that voices this thing's own examine description, localized - the same name a sighted
-        // player reads on examining it ("Cuno", "Pile of Eternite", "Coupris Kineema"). This is the first
-        // spoken line the examine conversation reaches from its start, whose speaker IS the object; the
-        // conversation's ConversantID is not reliable here - it can hold a narrative owner instead (the
-        // Kineema's conversant is Alice, the woman who owns it, while its self-description speaks as "Coupris
-        // Kineema"). Read live through the dialogue database each call (never cached). Null when the thing has
-        // no conversation or no reachable description line, so Core falls back to the name noun.
-        private string SelfDescribedActorName()
+        // The localized name a sighted player reads as this thing's examine header ("Cuno", "Pile of
+        // Eternite", "Coupris Kineema"). The preferred source is the actor that voices the object's own first
+        // examine-description line: for most examinables that speaker IS the object, which stays right even
+        // when the conversation's ConversantID holds a narrative owner rather than the object (the Kineema's
+        // conversant is Alice, the woman who owns it, while its self-description speaks as "Coupris Kineema").
+        // But some examines open on one of the player's inner voices narrating the object instead of the
+        // object speaking (the tire tracks open on a Visual Calculus passive); an inner voice is never the
+        // object's name, so there we fall back to the ConversantID, which for those cases holds the object
+        // itself ("Set of Tracks"). Read live through the dialogue database each call (never cached). Null
+        // when the thing has no conversation, so Core falls back to the name noun.
+        private string ExamineHeaderActor()
         {
             string conv = _e.conversation;
             if (string.IsNullOrEmpty(conv)) return null;
             DialogueDatabase db = DialogueManager.masterDatabase;
             Conversation c = db?.GetConversation(conv);
             if (c == null) return null;
-            int actorId = FirstDescriptionActor(c);
-            if (actorId < 0) return null;
-            Actor a = db.GetActor(actorId);
-            return a == null ? null : LocalizationUtils.GetActorLocalizedField(a, "Name");
+            Actor speaker = db.GetActor(FirstDescriptionActor(c));
+            if (speaker == null || IsInnerVoice(speaker)) speaker = db.GetActor(c.ConversantID);
+            return speaker == null ? null : LocalizationUtils.GetActorLocalizedField(speaker, "Name");
         }
+
+        // One of the player's inner voices - the four attributes, their skills, the Perception sub-senses, or
+        // the player himself - rather than a world actor. DE renders each in an attribute palette colour (the
+        // actor's "color" field, 2 through 5, and 7 for the player, who also reads IsPlayer), while every
+        // object or NPC is colour 1 or unset. Such a voice can narrate an examine (a Visual Calculus passive
+        // over the tire tracks) but is never the examined object's own name.
+        private static bool IsInnerVoice(Actor a)
+            => a.IsPlayer || InnerVoiceColors.Contains(a.LookupValue("color") ?? "");
+
+        private static readonly System.Collections.Generic.HashSet<string> InnerVoiceColors =
+            new System.Collections.Generic.HashSet<string> { "2", "3", "4", "5", "7" };
 
         // The actor id of the first entry carrying dialogue text reachable from the conversation's start node,
         // following outgoing links in author order (depth-first, so the first branch is walked before its
-        // siblings). A DE examine conversation opens on the object narrating itself, so that first spoken
-        // line's speaker is the object. Visited-set guarded against cycles; a link that leaves this
-        // conversation is skipped (its target id is not in this entry table). -1 when no text entry is reached.
+        // siblings). For most examinables that first spoken line's speaker is the object narrating itself; the
+        // caller rejects the exception where it is one of the player's inner voices instead. Visited-set
+        // guarded against cycles; a link that leaves this conversation is skipped (its target id is not in this
+        // entry table). -1 when no text entry is reached.
         private static int FirstDescriptionActor(Conversation c)
         {
             var entries = c.dialogueEntries;
