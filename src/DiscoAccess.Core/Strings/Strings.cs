@@ -219,6 +219,7 @@ namespace DiscoAccess.Core.Strings
         public const string SettingReadAmbientDialogue = "Read ambient dialogue";
         public const string SettingWallToneVolume = "Wall tone volume";
         public const string SettingWallTonesContinuous = "Continuous wall tones";
+        public const string SettingRunToDestinations = "Run to destinations";
 
         // The navigable affordance that advances a conversation when there are no response choices. DE's own
         // continue control is an image with no clean text label, so the word is authored; the player reaches

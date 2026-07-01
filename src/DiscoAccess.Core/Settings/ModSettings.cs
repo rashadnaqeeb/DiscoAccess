@@ -33,6 +33,10 @@ namespace DiscoAccess.Core.Settings
         /// sound only while the cursor is gliding, lingering briefly after it stops.</summary>
         public ToggleSetting WallTonesContinuous { get; }
 
+        /// <summary>When on, the character runs to a clicked destination instead of walking. Off (the default)
+        /// leaves the pace to the game's own policy, which walks, matching a vanilla single click.</summary>
+        public ToggleSetting RunToDestinations { get; }
+
         public ModSettings(ISettingsStore store)
         {
             AutoReadDialogue = Add(new ToggleSetting(
@@ -43,6 +47,8 @@ namespace DiscoAccess.Core.Settings
                 "wall_tone_volume", SettingWallToneVolume, defaultValue: 5, step: 5, store));
             WallTonesContinuous = Add(new ToggleSetting(
                 "wall_tones_continuous", SettingWallTonesContinuous, defaultValue: false, store));
+            RunToDestinations = Add(new ToggleSetting(
+                "run_to_destinations", SettingRunToDestinations, defaultValue: false, store));
         }
 
         private T Add<T>(T setting) where T : ModSetting

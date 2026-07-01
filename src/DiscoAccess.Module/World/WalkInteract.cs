@@ -167,9 +167,11 @@ namespace DiscoAccess.Module.World
             Il2CppSystem.Nullable<float> h = heading.HasValue
                 ? new Il2CppSystem.Nullable<float>(heading.Value)
                 : new Il2CppSystem.Nullable<float>();
-            // AUTOMATIC defers walk-versus-run to the game's own policy (the player's run preference, any
-            // scripted careful-movement spot), exactly as a vanilla click does; we never hardcode RUN.
-            main.SetDestination(WorldConvert.ToUnity(point), h, MovementMode.AUTOMATIC, false);
+            // The Run-to-destinations setting picks the pace: RUN drives run speed directly, while AUTOMATIC
+            // defers to the game's own distance policy, which walks (its auto-run distance is unbounded),
+            // matching a vanilla single click. This is the same primitive the game's click path bottoms out in.
+            MovementMode mode = _host.Settings.RunToDestinations.Value ? MovementMode.RUN : MovementMode.AUTOMATIC;
+            main.SetDestination(WorldConvert.ToUnity(point), h, mode, false);
             _dest = point;
             _active = true;
             _movedOnce = false;
