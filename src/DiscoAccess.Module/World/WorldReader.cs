@@ -187,8 +187,9 @@ namespace DiscoAccess.Module.World
             // A thing under the cursor: walk to it and interact. We do NOT pre-reject on the reachability
             // oracle - it reports unreachable for interactables the game can still act on by walking the last
             // leg itself (an NPC behind a bar counter, whose stand-point sits on a navmesh pocket the player
-            // cannot path to directly). The walk verb attempts the target's own Interact on arrival, and again
-            // if it stalls near the target, reporting "can't reach" only when that too refuses (a genuinely
+            // cannot path to directly). The walk verb attempts the target's own Interact on arrival, and on a
+            // stall retries a still-reachable target (a transient block at a crowded doorway), reporting "can't
+            // reach" only once the oracle agrees it cannot be pathed and the retries are spent (a genuinely
             // walled-off thing like the Yard Woodpile, or an orb still out of range). No target: a plain walk.
             if (target != null)
                 _walk.BeginInteract(target, player);

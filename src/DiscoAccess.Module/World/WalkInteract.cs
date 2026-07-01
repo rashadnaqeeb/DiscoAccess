@@ -30,6 +30,12 @@ namespace DiscoAccess.Module.World
         // are about a second and three-quarters of a second.
         private const int StartupGraceFrames = 60;
         private const int StallGraceFrames = 45;
+        // How many times a stalled walk is re-issued while the game's own oracle still says the target is
+        // reachable, before giving up. A stall short of a reachable target is usually transient - a wandering
+        // NPC briefly blocking a crowded doorway (the Whirling entrance), or a degenerate path the game handed
+        // back - and clears on a fresh attempt from where the character stopped; this bounds that so a genuinely
+        // stuck walk still ends rather than looping.
+        private const int MaxStallRetries = 2;
         // How close (metres) to a bare-ground destination counts as arrived, when no interaction radius applies.
         private const float GroundArrivalDistance = 0.6f;
 
@@ -41,6 +47,7 @@ namespace DiscoAccess.Module.World
         private bool _active;
         private bool _movedOnce;     // movementStatus has been MOVING/ADJUSTING since this walk began
         private int _stalledTicks;   // consecutive frames the character has been non-moving and not arrived
+        private int _retries;        // stalled-walk re-issues spent on the current target (see Stall)
 
         public WalkInteract(IModHost host) { _host = host; }
 
@@ -66,6 +73,7 @@ namespace DiscoAccess.Module.World
             if (!Drive(stand, heading)) return false;
             _target = target;
             _label = string.IsNullOrEmpty(target.Name) ? "target" : target.Name;
+            _retries = 0;
             _host.Speech.Speak(Strings.WorldWalkingTo(target.Name), interrupt: true);
             return true;
         }
@@ -107,8 +115,9 @@ namespace DiscoAccess.Module.World
 
         /// <summary>Advance the walk: when the character finishes its path (or already stands in range),
         /// interact once and finish. A broken path, or a walk that stalls (never starts, or moves then halts
-        /// short of the target) ends the watch rather than hanging - each logged, and a stalled approach to a
-        /// target speaks "can't reach" so the player is never left in silence after the "walking to" line.</summary>
+        /// short of the target) is handed to <see cref="Stall"/> rather than left hanging - which retries a
+        /// still-reachable target and, once that is exhausted, speaks "can't reach" so the player is never left
+        /// in silence after the "walking to" line. Each outcome is logged.</summary>
         public void Tick()
         {
             if (!_active) return;
@@ -143,14 +152,35 @@ namespace DiscoAccess.Module.World
         // End a stalled walk. Our SetDestination could not reach the stand-point, but the game's own Interact
         // may still walk the character the final leg and act - an NPC behind a bar counter, whose stand-point
         // sits on a navmesh pocket we cannot path to, is reached and talked to this way (proven live with
-        // Garte). So try Interact first; only when it too refuses is the thing genuinely unreachable (the
-        // walled-off Yard Woodpile), and then we say so rather than leave the player in silence. A bare-ground
-        // walk (no target) just stops being watched.
+        // Garte). So try Interact first. If it too refuses, ask the game's own reachability oracle from where
+        // the character actually stopped: when it still says the target is actionable, the stall was transient
+        // (a wandering NPC briefly blocking a crowded doorway, or a degenerate path the game handed back), so
+        // recompute the stand-point from here and walk again rather than falsely reporting can't-reach. Only
+        // when the oracle says the target cannot be pathed, or the retries are spent, is it genuinely
+        // unreachable (the walled-off Yard Woodpile) and we say so rather than leave the player in silence. A
+        // bare-ground walk (no target) just stops being watched.
         private void Stall()
         {
+            if (_target == null) { _active = false; return; }
+            if (_target.Interact()) { _active = false; SpeakPostInteract(); return; }
+
+            Character main = Main;
+            if (main != null && _retries < MaxStallRetries)
+            {
+                Snv here = WorldConvert.ToSnv(main.transform.position);
+                if (_target.IsActionable(here))
+                {
+                    _retries++;
+                    Snv stand = _target.Approach(here, out float heading);
+                    if (Drive(stand, heading))
+                    {
+                        _host.LogWarning($"WalkInteract: walk to {_label} stalled but still actionable; retry {_retries}/{MaxStallRetries}.");
+                        return;
+                    }
+                }
+            }
+
             _active = false;
-            if (_target == null) return;
-            if (_target.Interact()) { SpeakPostInteract(); return; }
             _host.Speech.Speak(Strings.WorldUnreachable(_target.Name), interrupt: true);
         }
 
