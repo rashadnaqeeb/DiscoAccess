@@ -30,6 +30,17 @@ namespace DiscoAccess.Core.World
             return (float)Math.Sqrt(dx * dx + dy * dy + dz * dz);
         }
 
+        /// <summary>Planar (XZ) distance in metres, ignoring elevation. The cursor's flat map sense: whether
+        /// the cursor is over a thing's footprint is an XZ question, so a thing whose geometry sits up high
+        /// (a staircase, an exit whose trigger origin floats above the steps) is still "under" the cursor
+        /// gliding beneath it. Height stays out of this decision; the game's own accessibility gate and the
+        /// navmesh clamp (which keeps the cursor off junk-parked, off-map entities) do the filtering.</summary>
+        public static float DistanceXZ(Vector3 from, Vector3 to)
+        {
+            float dx = to.X - from.X, dz = to.Z - from.Z;
+            return (float)Math.Sqrt(dx * dx + dz * dz);
+        }
+
         /// <summary>Whether the two points coincide in all three axes — you're on it. Vertical separation
         /// past the <see cref="VerticalThreshold"/> counts, so a thing directly overhead is not "here"; it
         /// reads its height as distance plus "above".</summary>

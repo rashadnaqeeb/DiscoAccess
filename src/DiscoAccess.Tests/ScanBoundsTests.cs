@@ -57,8 +57,8 @@ namespace DiscoAccess.Tests
         [Fact]
         public void Box_CarriesCentreHeight_SoAboveBelowStillReads()
         {
-            // A box up on a ledge (centre Y = 4): the nearest point carries that height, so a cursor on the
-            // floor reads the 3D gap and the thing correctly falls out of a small hover margin.
+            // A box up on a ledge (centre Y = 4): the nearest point carries that height, so a caller measuring
+            // a 3D distance reads the vertical gap.
             var b = ScanBounds.Box(new Vector3(0f, 4f, 0f), 1f, 1f);
             Assert.Equal(4f, b.NearestPoint(new Vector3(5f, 0f, 0f)).Y, 3);
         }

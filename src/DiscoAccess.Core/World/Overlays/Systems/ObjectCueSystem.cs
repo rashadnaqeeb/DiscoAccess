@@ -153,10 +153,13 @@ namespace DiscoAccess.Core.World.Overlays.Systems
             {
                 if (!it.IsAccessible || it.Category == WorldTaxonomy.Orb) continue;
                 if (Geo.Distance(it.Position, player) < PlayerEpsilon) continue; // the player itself
-                // Distance to the footprint's nearest part, 3D so a thing up on a ledge reads its height gap
-                // and falls out of the margin on its own (no arbitrary level cutoff). Strict less-than so an
+                // Distance to the footprint's nearest part, XZ-only: whether the cursor is over a thing is a
+                // flat-map question, so a thing whose geometry sits up high (a staircase, an exit whose trigger
+                // origin floats above the steps) is still on the cursor gliding beneath it. Height is not a
+                // reachability signal - the IsAccessible gate and the navmesh clamp (which keeps the cursor off
+                // the junk-parked, off-map entities that pass the gate) do the filtering. Strict less-than so an
                 // exact tie keeps the first-seen item rather than flapping as the poll reorders the registry.
-                float d = Geo.Distance(it.Bounds.NearestPoint(cursor), cursor);
+                float d = Geo.DistanceXZ(it.Bounds.NearestPoint(cursor), cursor);
                 if (d < bestDist) { bestDist = d; best = it; }
             }
             return best;

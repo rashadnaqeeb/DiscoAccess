@@ -38,10 +38,12 @@ namespace DiscoAccess.Module.World
             _e.TryCast<Character>() != null, Category, SceneAreaTokens());
         public Vector3 Position => WorldConvert.ToSnv(_e.transform.position);
 
-        // The real footprint: a Box on the ground plane sized to the entity's combined renderer bounds, so the
-        // cursor is "on" the thing anywhere over its surface, not only dead-centre. Centred on the body
-        // (transform XZ, ground Y), so a thing's height does not pollute the horizontal "am I over it" test
-        // while a thing up on a ledge still reads its Y gap. An entity with no renderers is a point at its body.
+        // The real footprint: a Box on the XZ plane sized to the entity's combined renderer bounds, so the
+        // cursor is "on" the thing anywhere over its surface, not only dead-centre. Centred on the live body
+        // transform, so a moving NPC's footprint follows it. The cursor's hit test (ObjectCueSystem.Under) is
+        // XZ-only, so a thing whose geometry sits up high - a staircase, an exit whose trigger origin floats
+        // above the steps it spans - is still on the cursor when it glides beneath the footprint. An entity
+        // with no renderers is a point at its body.
         public ScanBounds Bounds
         {
             get

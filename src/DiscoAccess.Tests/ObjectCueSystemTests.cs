@@ -216,6 +216,21 @@ namespace DiscoAccess.Tests
         }
 
         [Fact]
+        public void ElevatedThing_AtTheCursorsXZ_IsStillSelected()
+        {
+            // An accessible thing whose geometry sits well above the ground (a staircase, an exit whose trigger
+            // origin floats above the steps) at the cursor's own XZ: the hit test is XZ-only, so the cursor is
+            // on it despite the height. A 3D distance would have put it 3 m off and named bare ground instead.
+            var backend = new FakeBackend();
+            var (overlay, _, model, _, _) = Build(backend);
+            model.List.Add(new FakeItem { Name = "stairs", Position = new Vector3(5f, 3f, 0f) });
+
+            overlay.Cursor.Position = new Vector3(5f, 0f, 0f); // directly under it, 3 m below
+            overlay.AnnounceCurrent();
+            Assert.Equal(new[] { "stairs" }, backend.Spoken);
+        }
+
+        [Fact]
         public void Gated_NoControl_NoCue()
         {
             var (overlay, audio, model, _, env) = Build();

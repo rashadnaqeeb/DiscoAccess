@@ -87,8 +87,8 @@ namespace DiscoAccess.Core.World
         }
 
         // An axis-aligned XZ rectangle: the nearest point clamps the reference into the rectangle (inside
-        // returns the reference itself, distance 0), Y carried from the centre so a thing on another level
-        // still reads its height gap. A Unity collider/renderer world AABB maps straight onto this.
+        // returns the reference itself, distance 0), Y carried from the centre. A Unity collider/renderer
+        // world AABB maps straight onto this.
         private sealed class BoxBounds : ScanBounds
         {
             private readonly Vector3 _c;
