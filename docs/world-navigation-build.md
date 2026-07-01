@@ -493,10 +493,19 @@ These are real forks left open on purpose, not oversights.
 - Bounds refinement: doorway segments. Proxies now report a real `Box` footprint from renderer bounds
   (`ScanBounds.Box`), so the point-bound stand-in is gone; the disjoint-segment shape for a doorway's portal
   edges still exists in `ScanBounds` unused, if a door ever wants its opening measured rather than its box.
-- Area / district announcement. The district is encoded in entity names ("Harbor Crate", "Plaza Money") and
-  clusters spatially; a future overlay could name the cursor's district from the dominant capitalized name
-  prefix of the entities around it. Deferred (the raw prefix needs filtering against object-noun/adjective
-  leads; validated that the clusters are real).
+- Area / district announcement is now built (`DistrictReader` in the module), modelled on wotr-access's
+  room-transition tracker. The game has no runtime sub-districts (it names whole scenes only), so the mod
+  authors the partition as labelled anchor points and classifies the reference by the nearest one - a Voronoi
+  tiling, no overlaps or gaps. Two readouts: an auto-announce that speaks the sub-district the instant the
+  cursor-else-player reference crosses into a new one, and the 'r' key that reads the full location, the
+  game's localized map name plus the sub-district ("Martinaise, Harbour"; "Whirling in Rags floor 1"
+  indoors). Elevated micro-districts (the Whirling balcony, the Capeside roof and balcony) are separated from
+  the ground beneath by folding height into the distance. District names live in `Strings` (settled); the
+  anchor coordinates live in the module so they hot-reload. The earlier name-prefix idea was dropped: the
+  designer name prefixes proved coarse and un-localizable (the container groups are organizational, "West"
+  sits in the east, "Jam" is the traffic jam), so authored anchors plus the game's own map localization win.
+  Remaining: the anchor coordinates are a rough first pass tuned live during a full playthrough, and interior
+  room subdivision (a kitchen / backroom split, via the wotr navmesh watershed) is not yet authored.
 - Orb interaction. Camera follow (now built, see above) keeps an orb under the cursor rendered, which is
   the gate its clickable needs, so this is unblocked: the remaining work is making `OrbProxy.IsActionable`
   and `Interact` real (likely through `SenseOrb.StartConversation`, in range) and letting the Enter verb

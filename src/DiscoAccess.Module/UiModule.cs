@@ -132,6 +132,7 @@ namespace DiscoAccess.Module
             _input.Register(WorldActions.ReadTime, Strings.InputWorldReadTime, InputCategory.Status, () => _commands.ReadTime()).AddBinding(new KeyboardBinding(KeyCode.T));
             _input.Register(WorldActions.ReadMoney, Strings.InputWorldReadMoney, InputCategory.Status, () => _commands.ReadMoney()).AddBinding(new KeyboardBinding(KeyCode.M));
             _input.Register(WorldActions.ReadHealth, Strings.InputWorldReadHealth, InputCategory.Status, () => _commands.ReadHealth()).AddBinding(new KeyboardBinding(KeyCode.H));
+            _input.Register(WorldActions.ReadLocation, Strings.InputWorldReadLocation, InputCategory.Status, () => _world.ReadLocation()).AddBinding(new KeyboardBinding(KeyCode.R));
 
             // Ctrl+L cycles the game language, global (the world and menus), since the game's bare-key binding
             // is killed by type-ahead in our migrated screens. Not while a text field is editing.

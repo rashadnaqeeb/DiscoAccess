@@ -40,6 +40,7 @@ namespace DiscoAccess.Module.World
         private readonly WallToneSystem _wallTones;
         private readonly WorldModel _model = new WorldModel();
         private readonly WalkInteract _walk;
+        private readonly DistrictReader _districts;
         private bool _engaged;
         private bool _ownsKeyboard;
         private bool _wasOwning;
@@ -72,6 +73,7 @@ namespace DiscoAccess.Module.World
             _wallTones.BindVolume(() => host.Settings.WallToneVolume.Fraction);
             _overlay.With(_wallTones);
             _walk = new WalkInteract(host);
+            _districts = new DistrictReader(host);
             Active = this;
         }
 
@@ -137,11 +139,19 @@ namespace DiscoAccess.Module.World
             if (_wasGliding && !gliding) _overlay.AnnounceCurrent();
             _wasGliding = gliding;
 
+            // Announce the sub-district as the cursor (else the player) crosses into a new one.
+            _districts.Tick(_overlay.Cursor.Position, SceneName());
+
             _walk.Tick();
         }
 
         /// <summary>Snap the cursor back onto the character and read the new spot (the recenter key).</summary>
         public void Recenter() => _overlay.Recenter();
+
+        /// <summary>Read the current location - the map name and the sub-district (the Read-location key).</summary>
+        public void ReadLocation() => _districts.ReadLocation(_overlay.Cursor.Position, SceneName());
+
+        private static string SceneName() => UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
 
         /// <summary>Cancel a committed walk and stop the character (the Stop key).</summary>
         public void Cancel() => _walk.Cancel();

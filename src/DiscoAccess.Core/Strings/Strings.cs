@@ -52,6 +52,7 @@ namespace DiscoAccess.Core.Strings
         public const string InputWorldReadTime = "Read time";
         public const string InputWorldReadMoney = "Read money";
         public const string InputWorldReadHealth = "Read health";
+        public const string InputWorldReadLocation = "Read location";
 
         // Control role words, spoken after a control's label so the user knows what it is.
         public const string RoleButton = "button";
@@ -345,6 +346,32 @@ namespace DiscoAccess.Core.Strings
         public const string WorldThingPerson = "person";
         public const string WorldThingOrb = "orb";
         public const string WorldThingObject = "object";
+
+        // Authored names for the map's sub-districts (Martinaise-ext), spoken as the player crosses into one
+        // and appended to the map name by the location readout. The game has no runtime sub-district names -
+        // it names whole scenes only - so the mod authors the partition (see the module's DistrictReader).
+        public const string DistrictPlaza = "Plaza";
+        public const string DistrictYard = "Yard";
+        public const string DistrictTrafficJam = "Traffic Jam";
+        public const string DistrictHarbourGate = "Harbour Gate";
+        public const string DistrictHarbour = "Harbour";
+        public const string DistrictPier = "Pier";
+        public const string DistrictCanal = "Canal";
+        public const string DistrictFishingVillage = "Fishing Village";
+        public const string DistrictIce = "Ice";
+        public const string DistrictFishMarket = "Fish Market";
+        public const string DistrictLandsEnd = "Land's End";
+        public const string DistrictCoast = "Coast";
+        public const string DistrictSeaFortress = "Sea Fortress";
+        public const string DistrictWhirlingBalcony = "Whirling Balcony";
+        public const string DistrictApartmentBalcony = "Apartment Balcony";
+        public const string DistrictApartmentRoof = "Apartment Roof";
+
+        /// <summary>The location readout ('r'): the localized map name, then the sub-district when there is
+        /// one ("Martinaise, Harbour"; just "Whirling in Rags floor 1" indoors). The map name is the game's
+        /// own localized area name, so only the join is authored here.</summary>
+        public static string WorldLocation(string map, string subregion)
+            => string.IsNullOrEmpty(subregion) ? map : map + ", " + subregion;
 
         // The walk-then-interact verb's spoken feedback. The mod authors these (DE has no equivalent line):
         // committing a walk, the bare-ground walk with no target, the reachability refusal, and the cancel.
