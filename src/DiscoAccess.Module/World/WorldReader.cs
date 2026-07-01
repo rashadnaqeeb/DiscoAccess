@@ -181,15 +181,15 @@ namespace DiscoAccess.Module.World
             Snv cursor = _overlay.Cursor.Position;
             Snv player = _overlay.Cursor.PlayerPosition;
             // The one thing under the cursor - the exact selection the cursor blip and spoken name use, so
-            // Enter acts on precisely what was announced, never a different thing. Under() returns only
-            // accessible non-orb items, all of which are entities, so the cast always takes when non-null.
-            EntityProxy target = _objects.Under(cursor, player) as EntityProxy;
+            // Enter acts on precisely what was announced, never a different thing. Under() returns accessible
+            // interactables and orbs, every one of which is an IWalkTarget, so this always takes when non-null.
+            IWalkTarget target = _objects.Under(cursor, player) as IWalkTarget;
             // A thing under the cursor: walk to it and interact. We do NOT pre-reject on the reachability
             // oracle - it reports unreachable for interactables the game can still act on by walking the last
             // leg itself (an NPC behind a bar counter, whose stand-point sits on a navmesh pocket the player
-            // cannot path to directly). The walk verb attempts the game's own Interact on arrival, and again
+            // cannot path to directly). The walk verb attempts the target's own Interact on arrival, and again
             // if it stalls near the target, reporting "can't reach" only when that too refuses (a genuinely
-            // walled-off thing like the Yard Woodpile). No target under the cursor: a plain walk to the spot.
+            // walled-off thing like the Yard Woodpile, or an orb still out of range). No target: a plain walk.
             if (target != null)
                 _walk.BeginInteract(target, player);
             else

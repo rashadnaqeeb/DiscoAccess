@@ -14,11 +14,13 @@ namespace DiscoAccess.Module.World
     /// <c>movementStatus</c>, and <c>Interact</c> on arrival. A small arrival-watching state machine ticked
     /// each frame by the <see cref="WorldReader"/>, cancellable mid-path.
     ///
-    /// Reachability is decided up front by the game's own oracle on the stand-point
-    /// (<c>CheckIfCanCreatePathToHavePath</c>), never our own path to the body, which false-negatives on an
-    /// off-mesh sliver under an NPC's feet. An unreachable target is refused here rather than walked partway
-    /// and failed silently. Orbs and bare ground are out of scope: orb interaction is deferred (needs
-    /// camera-follow), and a no-target Enter is a plain walk handled by <see cref="BeginWalk"/>.
+    /// The target is any <see cref="IWalkTarget"/> - an entity (stand-point from the game's interaction
+    /// location) or an orb (the orb body, snapped to the navmesh) alike - so this one verb walks the character
+    /// up to and triggers both. Reachability is never pre-judged here; the walk drives toward the stand-point
+    /// and, on arrival or a stall, calls the target's own <c>Interact</c>, which acts when in range and refuses
+    /// (yielding a spoken can't-reach) when not - so a thing the game can still reach by walking its last leg
+    /// is never wrongly refused, and an orb only triggers once the character stands under it. A no-target
+    /// Enter is a plain walk to bare ground handled by <see cref="BeginWalk"/>.
     /// </summary>
     internal sealed class WalkInteract
     {
@@ -33,7 +35,7 @@ namespace DiscoAccess.Module.World
 
         private readonly IModHost _host;
 
-        private EntityProxy _target; // null => bare-ground walk (arrival is the whole action, no interact)
+        private IWalkTarget _target; // null => bare-ground walk (arrival is the whole action, no interact)
         private string _label;       // the target's name (or "ground"), for logs only
         private Snv _dest;           // the issued destination, for bare-ground arrival distance
         private bool _active;
@@ -49,7 +51,7 @@ namespace DiscoAccess.Module.World
         /// on arrival, approaching from <paramref name="from"/> (the character's current position). The caller
         /// has already confirmed the target is reachable (it would otherwise route to <see cref="BeginWalk"/>),
         /// so the stand-point is computed and driven directly.</summary>
-        public bool BeginInteract(EntityProxy target, Snv from)
+        public bool BeginInteract(IWalkTarget target, Snv from)
         {
             Snv stand = target.Approach(from, out float heading);
             if (!Drive(stand, heading)) return false;
@@ -132,7 +134,7 @@ namespace DiscoAccess.Module.World
         {
             _active = false;
             if (_target == null) return;
-            if (_target.Interact()) return;
+            if (_target.Interact()) { SpeakPostInteract(); return; }
             _host.Speech.Speak(Strings.WorldUnreachable(_target.Name), interrupt: true);
         }
 
@@ -156,6 +158,17 @@ namespace DiscoAccess.Module.World
                 _host.LogWarning($"WalkInteract: arrived near {_label} but outside its interaction radius; interacting anyway.");
             if (!_target.Interact())
                 _host.LogWarning($"WalkInteract: Interact on {_label} returned false at the stand-point.");
+            else
+                SpeakPostInteract();
+        }
+
+        // Speak whatever the target says after a successful interact (a simple orb's floated clue text); most
+        // targets say nothing. Queued so it follows the interaction without cutting off the walk feedback.
+        private void SpeakPostInteract()
+        {
+            string line = _target.PostInteractLine();
+            if (!string.IsNullOrEmpty(line))
+                _host.Speech.Speak(line, interrupt: false);
         }
 
         private bool Drive(Snv point, float? heading)

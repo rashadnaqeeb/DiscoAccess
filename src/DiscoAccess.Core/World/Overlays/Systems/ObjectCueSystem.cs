@@ -16,9 +16,9 @@ namespace DiscoAccess.Core.World.Overlays.Systems
     ///   the cursor, so the player hears "crate; northeast, 2 meters" - the name first, then the position
     ///   from the spatial system.
     ///
-    /// It senses only the actionable set (accessible interactables), the exact set the Enter verb acts on, so
-    /// what the cursor names and clicks can never disagree: scenery you cannot act on and orbs (whose
-    /// interaction is deferred) are not sensed. Self-gates like the audio systems - the blip falls silent
+    /// It senses the actionable set - accessible interactables and world-anchored orbs whose conditions are
+    /// met - the exact set the Enter verb acts on, so what the cursor names and clicks can never disagree:
+    /// scenery you cannot act on is not sensed. Self-gates like the audio systems - the blip falls silent
     /// under a cutscene, a lost-control moment, or a menu floating over the world.
     /// </summary>
     public sealed class ObjectCueSystem : OverlaySystem
@@ -140,18 +140,18 @@ namespace DiscoAccess.Core.World.Overlays.Systems
                 yield return new OverlayAnnouncement(AnnouncementContext.Point, under.Name);
         }
 
-        // The one thing under the cursor: the nearest actionable interactable whose footprint the cursor is
-        // within HoverMargin of, not the player's own entity. The single selection the blip (Tick), the
-        // spoken name (Announce), and the Enter verb (WorldReader) all call, so they cannot disagree. The
-        // set is IsAccessible and non-orb - the exact set Enter can act on - so scenery and the not-yet-
-        // interactable orbs are never named or clicked. Scans the registry each call (a few hundred items).
+        // The one thing under the cursor: the nearest actionable thing whose footprint the cursor is within
+        // HoverMargin of, not the player's own entity. The single selection the blip (Tick), the spoken name
+        // (Announce), and the Enter verb (WorldReader) all call, so they cannot disagree. The set is
+        // IsAccessible - accessible interactables and orbs alike, the exact set Enter can act on - so
+        // inaccessible scenery is never named or clicked. Scans the registry each call (a few hundred items).
         public IWorldItem? Under(Vector3 cursor, Vector3 player)
         {
             IWorldItem? best = null;
             float bestDist = HoverMargin;
             foreach (IWorldItem it in _model.Items)
             {
-                if (!it.IsAccessible || it.Category == WorldTaxonomy.Orb) continue;
+                if (!it.IsAccessible) continue;
                 if (Geo.Distance(it.Position, player) < PlayerEpsilon) continue; // the player itself
                 // Distance to the footprint's nearest part, XZ-only: whether the cursor is over a thing is a
                 // flat-map question, so a thing whose geometry sits up high (a staircase, an exit whose trigger

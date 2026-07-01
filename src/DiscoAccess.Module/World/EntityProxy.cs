@@ -12,7 +12,7 @@ namespace DiscoAccess.Module.World
     /// prop). Reads everything live and classifies by the game's own <see cref="Interactable"/> subclass
     /// tree via <c>TryCast</c> (not GetType, which the interop boxes to BasicEntity).
     /// </summary>
-    internal sealed class EntityProxy : IWorldItem
+    internal sealed class EntityProxy : IWalkTarget
     {
         // A footprint half-width is capped here so a pathological oversized renderer (an area-wide effect, a
         // skybox quad parented to an entity) can't become a footprint that swallows the cursor everywhere.
@@ -220,18 +220,22 @@ namespace DiscoAccess.Module.World
 
         public bool IsActionable(Vector3 from) => _e.CheckIfCanCreatePathToHavePath(LocationAt(from));
 
-        // Extra facts the Enter walk-then-interact verb needs beyond the sensing contract: the stand-point's
-        // facing (so the character ends up looking the right way) and the game's own arrival-range test. Kept
-        // here so the game-call and Unity<->Numerics conversion stay inside the proxy boundary.
-        internal Vector3 Approach(Vector3 from, out float heading)
+        // The IWalkTarget facts the Enter walk-then-interact verb needs beyond the sensing contract: the
+        // stand-point's facing (so the character ends up looking the right way) and the game's own
+        // arrival-range test. Kept here so the game-call and Unity<->Numerics conversion stay in the proxy.
+        public Vector3 Approach(Vector3 from, out float heading)
         {
             Formation.Location loc = _e.GetInteractionLocation(LocationAt(from));
             heading = loc.heading;
             return WorldConvert.ToSnv(loc.position);
         }
 
-        internal bool WithinInteractionRadius(Vector3 playerPos)
+        public bool WithinInteractionRadius(Vector3 playerPos)
             => _e.IsWithinInteractionRadius(WorldConvert.ToUnity(playerPos));
+
+        // An entity says nothing extra on interact: the game reacts (opens a container, starts a conversation)
+        // and its own readers speak. Only orbs float text the mod must voice itself.
+        public string PostInteractLine() => null;
 
         private static Formation.Location LocationAt(Vector3 from)
             => new Formation.Location(WorldConvert.ToUnity(from), 0f);

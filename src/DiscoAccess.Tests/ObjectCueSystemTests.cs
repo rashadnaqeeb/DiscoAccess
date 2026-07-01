@@ -256,12 +256,26 @@ namespace DiscoAccess.Tests
         }
 
         [Fact]
-        public void Orb_NotHovered()
+        public void AccessibleOrb_IsHovered()
         {
-            // Orbs are accessible in the registry but their interaction is deferred, so Enter skips them; the
-            // cursor must skip them too, or it would name a thing Enter cannot act on.
+            // Orbs join the sensed set: a world-anchored orb whose conditions are met blips and names like any
+            // interactable, so the cursor can find it (the Enter verb walks the character up and triggers it).
             var (overlay, audio, model, _, _) = Build();
             model.List.Add(new FakeItem { Position = new Vector3(3f, 0f, 0f), Cat = WorldTaxonomy.Orb });
+
+            Glide(overlay, 0f);
+            Glide(overlay, 3f);
+            Assert.Equal(new[] { AudioCue.CursorEnter }, audio.Cues);
+        }
+
+        [Fact]
+        public void InaccessibleOrb_NotHovered()
+        {
+            // A locked orb (conditions unmet, or a morsel it does not offer) reads inaccessible, so the gate
+            // hides it exactly like inaccessible scenery - the cursor never names an orb the player cannot act
+            // on yet.
+            var (overlay, audio, model, _, _) = Build();
+            model.List.Add(new FakeItem { Position = new Vector3(3f, 0f, 0f), Cat = WorldTaxonomy.Orb, Accessible = false });
 
             Glide(overlay, 0f);
             Glide(overlay, 3f);
