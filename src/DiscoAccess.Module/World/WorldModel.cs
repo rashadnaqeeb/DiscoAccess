@@ -10,9 +10,13 @@ namespace DiscoAccess.Module.World
     /// <summary>
     /// The live registry of everything in the current area: one stable proxy per entity and orb, rebuilt by
     /// a poll-and-diff each frame against the game's pools (<see cref="BasicEntity.sceneEntitySet"/> and the
-    /// active <see cref="SenseOrb"/>s). One proxy instance per game object is kept across frames - the
-    /// interop wrapper cache makes the game objects stable dictionary keys - so a consumer can hold a proxy
-    /// and keep reading it. Not fog-filtered; consumers apply IsVisible/IsAccessible.
+    /// active <see cref="SenseOrb"/>s). One proxy instance per game object is kept across frames so a consumer
+    /// can hold a proxy and keep reading it. Keyed by <see cref="Object.GetInstanceID"/>, not the Unity object
+    /// itself: <c>FindObjectsOfType</c> hands back a fresh managed wrapper each call, and those wrappers do not
+    /// compare equal in a dictionary keyed by the object (unlike the persistent <c>sceneEntitySet</c> ones), so
+    /// keying by the object would rebuild every orb's proxy each poll - churning the reference the cursor cue
+    /// compares by and machine-gunning its enter click. The instance id is stable per native object. Not
+    /// fog-filtered; consumers apply IsVisible/IsAccessible.
     /// </summary>
     internal sealed class WorldModel : IWorldModel
     {
@@ -22,9 +26,9 @@ namespace DiscoAccess.Module.World
         // order of seconds. A tenth of a second of membership lag is imperceptible and cuts the scan rate ~6x.
         private const float PollInterval = 0.1f;
 
-        private readonly Dictionary<Object, IWorldItem> _items = new Dictionary<Object, IWorldItem>();
-        private readonly HashSet<Object> _present = new HashSet<Object>();
-        private readonly List<Object> _gone = new List<Object>();
+        private readonly Dictionary<int, IWorldItem> _items = new Dictionary<int, IWorldItem>();
+        private readonly HashSet<int> _present = new HashSet<int>();
+        private readonly List<int> _gone = new List<int>();
         private float _sincePoll = PollInterval; // poll on the first tick
 
         public IReadOnlyCollection<IWorldItem> Items => _items.Values;
@@ -60,26 +64,28 @@ namespace DiscoAccess.Module.World
             }
 
             _gone.Clear();
-            foreach (Object key in _items.Keys) if (!_present.Contains(key)) _gone.Add(key);
+            foreach (int key in _items.Keys) if (!_present.Contains(key)) _gone.Add(key);
             for (int i = 0; i < _gone.Count; i++)
             {
-                Object key = _gone[i];
+                int key = _gone[i];
                 IWorldItem item = _items[key];
                 _items.Remove(key);
                 Removed?.Invoke(item);
             }
         }
 
-        // Mark a game object present, building (and announcing) a proxy only the first time it is seen.
+        // Mark a game object present, building (and announcing) a proxy only the first time it is seen. Keyed
+        // by the native instance id (stable across the fresh wrappers FindObjectsOfType returns each poll).
         private void Track(Object key, Func<IWorldItem> make)
         {
-            if (!_items.ContainsKey(key))
+            int id = key.GetInstanceID();
+            if (!_items.ContainsKey(id))
             {
                 IWorldItem item = make();
-                _items[key] = item;
+                _items[id] = item;
                 Added?.Invoke(item);
             }
-            _present.Add(key);
+            _present.Add(id);
         }
     }
 }
