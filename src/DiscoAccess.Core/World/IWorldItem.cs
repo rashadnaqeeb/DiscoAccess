@@ -30,6 +30,12 @@ namespace DiscoAccess.Core.World
         /// <summary>Whether the player could currently know about this thing (revealed, streamed in).</summary>
         bool IsVisible { get; }
 
+        /// <summary>Whether this thing rides the player character rather than sitting at a fixed world spot
+        /// (a thought-cabinet orb orbiting the character). Such a thing sits on top of the character, so the
+        /// cursor's near-player skip - which drops the character's own entity so it is never hover-announced -
+        /// must not drop it. False for everything world-anchored.</summary>
+        bool RidesPlayer { get; }
+
         /// <summary>The on-navmesh stand-point to approach this thing from <paramref name="from"/> in order
         /// to act on it (the game's interaction location). The point the sonar pings, the scanner targets,
         /// and the go-here distance measures to: it sits on reachable ground, so following it leads to a

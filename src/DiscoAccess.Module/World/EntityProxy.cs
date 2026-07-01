@@ -211,6 +211,7 @@ namespace DiscoAccess.Module.World
         public string Category => Classify(_e);
         public bool IsAccessible => _e.IsAccessible;
         public bool IsVisible => true; // present in the scene; fog/streaming refinement comes later
+        public bool RidesPlayer => false; // an entity is world-anchored, never carried by the character
 
         // The interaction stand-point and the reachability oracle, both approach-relative (computed from the
         // querying position). GameEntity, which BasicEntity derives from, supplies both; the from-position

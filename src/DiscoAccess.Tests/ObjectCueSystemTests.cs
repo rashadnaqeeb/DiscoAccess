@@ -58,6 +58,8 @@ namespace DiscoAccess.Tests
             public string Category => Cat;
             public bool IsAccessible => Accessible;
             public bool IsVisible => Visible;
+            public bool Rides { get; set; }
+            public bool RidesPlayer => Rides;
             public Vector3 InteractionPoint(Vector3 from) => Position;
             public bool IsActionable(Vector3 from) => false;
             public bool Interact() => false;
@@ -228,6 +230,22 @@ namespace DiscoAccess.Tests
             overlay.Cursor.Position = new Vector3(5f, 0f, 0f); // directly under it, 3 m below
             overlay.AnnounceCurrent();
             Assert.Equal(new[] { "stairs" }, backend.Spoken);
+        }
+
+        [Fact]
+        public void ThingOnThePlayer_IsSkipped_UnlessItRides()
+        {
+            // The cursor's near-player skip drops the character's own entity (so it is never hover-named when
+            // the cursor is centred), but a thought-cabinet orb that legitimately rides the character must
+            // still be found sitting right on top of it. Both are at the player (origin); only the rider names.
+            var backend = new FakeBackend();
+            var (overlay, _, model, _, _) = Build(backend);
+            model.List.Add(new FakeItem { Name = "character", Position = Vector3.Zero });
+            model.List.Add(new FakeItem { Name = "paralyzer", Position = Vector3.Zero, Rides = true });
+
+            overlay.Cursor.Position = Vector3.Zero; // centred on the character
+            overlay.AnnounceCurrent();
+            Assert.Equal(new[] { "paralyzer" }, backend.Spoken);
         }
 
         [Fact]

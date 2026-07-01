@@ -396,6 +396,11 @@ namespace DiscoAccess.Core.Strings
         /// <summary>Spoken when the player cancels a committed walk.</summary>
         public const string WorldStopped = "stopped";
 
+        /// <summary>Spoken when a walk is refused because a paralyzer or unresolved thought orb holds the
+        /// character in place (the game's own movement block); the orb rides the character and must be
+        /// triggered to release it.</summary>
+        public const string WorldOrbHolds = "held by an orb, resolve it to move";
+
         // ---- World status readouts (mod-authored; the game has no spoken equivalent) ----
 
         // The wallet total. The game stores money in centims (100 = one réal) and its on-screen formatter

@@ -152,7 +152,9 @@ namespace DiscoAccess.Core.World.Overlays.Systems
             foreach (IWorldItem it in _model.Items)
             {
                 if (!it.IsAccessible) continue;
-                if (Geo.Distance(it.Position, player) < PlayerEpsilon) continue; // the player itself
+                // Drop anything sitting on the player - that is the character's own entity - unless the thing
+                // legitimately rides the character (a thought-cabinet orb orbiting it), which must stay findable.
+                if (!it.RidesPlayer && Geo.Distance(it.Position, player) < PlayerEpsilon) continue;
                 // Distance to the footprint's nearest part, XZ-only: whether the cursor is over a thing is a
                 // flat-map question, so a thing whose geometry sits up high (a staircase, an exit whose trigger
                 // origin floats above the steps) is still on the cursor gliding beneath it. Height is not a

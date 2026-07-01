@@ -53,6 +53,15 @@ namespace DiscoAccess.Module.World
         /// so the stand-point is computed and driven directly.</summary>
         public bool BeginInteract(IWalkTarget target, Snv from)
         {
+            // A paralyzer or unresolved thought orb freezes the character where they stand (the game's own
+            // HasOrbsBlockingTequilaMovement gate, which its click-to-move path honours but our direct
+            // SetDestination bypasses). Refuse to walk away while held - except an in-place interact with the
+            // holding orb itself (a player-anchored orb travels nowhere), which is how the block is released.
+            if (MovementBlocked() && !target.RidesPlayer)
+            {
+                _host.Speech.Speak(Strings.WorldOrbHolds, interrupt: true);
+                return false;
+            }
             Snv stand = target.Approach(from, out float heading);
             if (!Drive(stand, heading)) return false;
             _target = target;
@@ -67,6 +76,13 @@ namespace DiscoAccess.Module.World
         /// walkable and getting closer can make that thing reachable for a follow-up).</summary>
         public bool BeginWalk(Snv point, string announcement)
         {
+            // Bare-ground walk carries the character off with no target to resolve the hold, so it is always
+            // refused while a paralyzer or unresolved thought orb holds them in place (see BeginInteract).
+            if (MovementBlocked())
+            {
+                _host.Speech.Speak(Strings.WorldOrbHolds, interrupt: true);
+                return false;
+            }
             if (!Drive(point, null)) return false;
             _target = null;
             _label = "ground";
@@ -197,6 +213,11 @@ namespace DiscoAccess.Module.World
             GameController gc = GameController.Singleton;
             if (gc != null) gc.StopMovement(force: false);
         }
+
+        // The game's own "orbs are freezing the player" verdict: true while any paralyzer or unresolved
+        // thought orb sits on the character. Read live (never cached) so the block lifts the instant the orb
+        // is resolved.
+        private static bool MovementBlocked() => GlobalOrbManager.HasOrbsBlockingTequilaMovement();
 
         private static Character Main
         {
