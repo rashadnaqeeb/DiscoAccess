@@ -33,15 +33,6 @@ namespace DiscoAccess.Tests
             public void Stop() { }
         }
 
-        private sealed class FakeAudio : IAudioEngine
-        {
-            public readonly List<AudioCue> Cues = new List<AudioCue>();
-            public bool Available => true;
-            public void PlayOneShot(float frequency, float seconds, float volume, float pan) { }
-            public void PlayCue(AudioCue cue, float volume, float pan) => Cues.Add(cue);
-            public IWallTones CreateWallTones() => throw new NotSupportedException();
-        }
-
         private sealed class FakeItem : IWorldItem
         {
             public string Name { get; set; } = "thing";
@@ -77,14 +68,14 @@ namespace DiscoAccess.Tests
             public event Action<IWorldItem> Removed { add { } remove { } }
         }
 
-        private static (Overlay overlay, FakeAudio audio, FakeModel model, ObjectCueSystem sys, FakeEnv env)
+        private static (Overlay overlay, FakeAudioEngine audio, FakeModel model, ObjectCueSystem sys, FakeEnv env)
             Build(FakeBackend? backend = null)
         {
             var env = new FakeEnv();
             var model = new FakeModel();
-            var audio = new FakeAudio();
+            var audio = new FakeAudioEngine();
             var overlay = new Overlay(env, new SpeechPipeline(backend ?? new FakeBackend()));
-            var sys = new ObjectCueSystem(model, audio);
+            var sys = new ObjectCueSystem(model, new SpatialSources(audio, _ => { }));
             sys.BindMode(() => PlayMode.Continuous);
             overlay.With(sys);
             return (overlay, audio, model, sys, env);
@@ -390,7 +381,7 @@ namespace DiscoAccess.Tests
             var env = new FakeEnv();
             var model = new FakeModel();
             var overlay = new Overlay(env, new SpeechPipeline(backend));
-            var objects = new ObjectCueSystem(model, new FakeAudio());
+            var objects = new ObjectCueSystem(model, new SpatialSources(new FakeAudioEngine(), _ => { }));
             objects.BindMode(() => PlayMode.Continuous);
             var spatial = new SpatialSystem();
             spatial.BindMode(() => PlayMode.Continuous);

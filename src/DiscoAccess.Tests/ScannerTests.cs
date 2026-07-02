@@ -20,16 +20,6 @@ namespace DiscoAccess.Tests
             public void Stop() { }
         }
 
-        private sealed class FakeAudio : IAudioEngine
-        {
-            public readonly List<(AudioCue cue, float volume, float pan)> Cues =
-                new List<(AudioCue, float, float)>();
-            public bool Available => true;
-            public void PlayOneShot(float frequency, float seconds, float volume, float pan) { }
-            public void PlayCue(AudioCue cue, float volume, float pan) => Cues.Add((cue, volume, pan));
-            public IWallTones CreateWallTones() => throw new NotSupportedException();
-        }
-
         private sealed class FakeItem : IWorldItem
         {
             public string Name { get; set; } = "thing";
@@ -55,12 +45,13 @@ namespace DiscoAccess.Tests
             public event Action<IWorldItem> Removed { add { } remove { } }
         }
 
-        private static (Scanner scanner, FakeModel model, FakeBackend speech, FakeAudio audio) Build()
+        private static (Scanner scanner, FakeModel model, FakeBackend speech, FakeAudioEngine audio) Build()
         {
             var model = new FakeModel();
             var speech = new FakeBackend();
-            var audio = new FakeAudio();
-            var scanner = new Scanner(model, () => Vector3.Zero, new SpeechPipeline(speech), audio);
+            var audio = new FakeAudioEngine();
+            var scanner = new Scanner(model, () => Vector3.Zero, new SpeechPipeline(speech),
+                                      new SpatialSources(audio, _ => { }));
             return (scanner, model, speech, audio);
         }
 
@@ -219,9 +210,11 @@ namespace DiscoAccess.Tests
             model.List.Add(At(3f, 0f, "east thing")); // due east of the reference
 
             scanner.StepItem(1);
-            var (cue, volume, pan) = Assert.Single(audio.Cues);
+            var (cue, volume, placement) = Assert.Single(audio.Played);
             Assert.Equal(AudioCue.CursorEnter, cue);
-            Assert.True(pan > 0.5f);   // east pans right
+            Assert.True(placement.Pan > 0.5f);        // east pans right
+            Assert.True(placement.ItdSeconds > 0f);   // east leads the right ear
+            Assert.Equal(0f, placement.WetMix, 3);    // not behind, so dry
             Assert.True(volume > 0f);
         }
 

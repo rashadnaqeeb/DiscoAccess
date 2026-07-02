@@ -32,25 +32,6 @@ namespace DiscoAccess.Tests
             public void ReleaseCamera() { }
         }
 
-        private sealed class FakeTones : IWallTones
-        {
-            public float[] Last = System.Array.Empty<float>();
-            public int Updates;
-            public bool Disposed;
-            public void Update(float[] volumes) { Last = (float[])volumes.Clone(); Updates++; }
-            public void Dispose() => Disposed = true;
-        }
-
-        private sealed class FakeAudio : IAudioEngine
-        {
-            public int Created;
-            public readonly FakeTones Tones = new FakeTones();
-            public bool Available => true;
-            public void PlayOneShot(float frequency, float seconds, float volume, float pan) { }
-            public void PlayCue(AudioCue cue, float volume, float pan) { }
-            public IWallTones CreateWallTones() { Created++; return Tones; }
-        }
-
         private sealed class FakeBackend : ISpeechBackend
         {
             public bool IsAvailable => true;
@@ -64,7 +45,7 @@ namespace DiscoAccess.Tests
         public void Continuous_MapsEachCardinalToTheProximityCurve()
         {
             var env = new FakeEnv { North = 0f, South = 100f, East = Range / 2f, West = 100f };
-            var audio = new FakeAudio();
+            var audio = new FakeAudioEngine();
             var sys = new WallToneSystem(env, audio);
             sys.BindMode(() => PlayMode.Continuous);
             var overlay = NewOverlay(env);
@@ -84,7 +65,7 @@ namespace DiscoAccess.Tests
         public void Volume_ScalesEveryVoice()
         {
             var env = new FakeEnv { North = 0f };
-            var audio = new FakeAudio();
+            var audio = new FakeAudioEngine();
             var sys = new WallToneSystem(env, audio);
             sys.BindMode(() => PlayMode.Continuous);
             sys.BindVolume(() => 0.5f);
@@ -100,7 +81,7 @@ namespace DiscoAccess.Tests
         public void NoControl_StandsDownWithoutBuildingVoices()
         {
             var env = new FakeEnv { North = 0f, Control = false };
-            var audio = new FakeAudio();
+            var audio = new FakeAudioEngine();
             var sys = new WallToneSystem(env, audio);
             sys.BindMode(() => PlayMode.Continuous);
             var overlay = NewOverlay(env);
@@ -116,7 +97,7 @@ namespace DiscoAccess.Tests
         public void LosingControl_MutesButKeepsTheVoices()
         {
             var env = new FakeEnv { North = 0f };
-            var audio = new FakeAudio();
+            var audio = new FakeAudioEngine();
             var sys = new WallToneSystem(env, audio);
             sys.BindMode(() => PlayMode.Continuous);
             var overlay = NewOverlay(env);
@@ -136,7 +117,7 @@ namespace DiscoAccess.Tests
         public void NotInputActive_MutesEvenWithControlAndContinuous()
         {
             var env = new FakeEnv { North = 0f };
-            var audio = new FakeAudio();
+            var audio = new FakeAudioEngine();
             var sys = new WallToneSystem(env, audio);
             sys.BindMode(() => PlayMode.Continuous);
             var overlay = NewOverlay(env);
@@ -156,7 +137,7 @@ namespace DiscoAccess.Tests
         public void WhenMoving_PlaysWhileGlidingAndMutesAtRest()
         {
             var env = new FakeEnv { North = 0f };
-            var audio = new FakeAudio();
+            var audio = new FakeAudioEngine();
             var sys = new WallToneSystem(env, audio);
             sys.BindMode(() => PlayMode.WhenMoving);
             var overlay = NewOverlay(env);

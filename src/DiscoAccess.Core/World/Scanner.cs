@@ -37,7 +37,7 @@ namespace DiscoAccess.Core.World
         private readonly IWorldModel _model;
         private readonly Func<Vector3> _scanFrom;
         private readonly SpeechPipeline _speech;
-        private readonly IAudioEngine _audio;
+        private readonly SpatialSources _cues;
 
         // Category index: 0 = the synthetic Everything, 1.. = WorldTaxonomy.Scan. The selection is the
         // reviewed proxy itself, held by identity (the registry keeps one stable proxy per thing), so it
@@ -47,12 +47,12 @@ namespace DiscoAccess.Core.World
         private IWorldItem? _selected;
         private bool _entered;
 
-        public Scanner(IWorldModel model, Func<Vector3> scanFrom, SpeechPipeline speech, IAudioEngine audio)
+        public Scanner(IWorldModel model, Func<Vector3> scanFrom, SpeechPipeline speech, SpatialSources cues)
         {
             _model = model;
             _scanFrom = scanFrom;
             _speech = speech;
-            _audio = audio;
+            _cues = cues;
         }
 
         /// <summary>The reviewed thing, for the act verbs (walk-interact, plant-the-cursor). Null until the
@@ -120,23 +120,24 @@ namespace DiscoAccess.Core.World
         private void Land(IWorldItem item, Vector3 from, string prefix = "")
         {
             _selected = item;
-            Ping(item, from);
+            Ping(item);
             string spatial = SpatialReadout.Describe(from, item.InteractionPoint(from));
             string name = string.IsNullOrEmpty(item.Name) ? WorldThingObject : item.Name;
             _speech.Speak(prefix + name + "; " + spatial, interrupt: true);
         }
 
-        // The review ping: a one-shot placed at the thing's nearest part relative to the scan reference, so
-        // the ear hears where the readout says it is. Same cue as the cursor's enter blip until per-category
-        // sounds are authored (planned with the sonar).
-        private void Ping(IWorldItem item, Vector3 from)
+        // The review ping: a tracked one-shot placed at the thing's nearest part relative to the scan
+        // reference, so the ear hears where the readout says it is - pan + ear delay east/west, muffled
+        // when it sits behind (south of) the reference - and re-placed while it sounds, so a glide during
+        // the ping keeps it truthful. Same cue as the cursor's enter blip until per-category sounds are
+        // authored (planned with the sonar).
+        private void Ping(IWorldItem item)
         {
-            Vector3 np = item.Bounds.NearestPoint(from);
-            float dx = np.X - from.X, dz = np.Z - from.Z;
-            float dist = (float)Math.Sqrt(dx * dx + dz * dz);
-            float pan = Spatial.Pan(dx, dist, PanWidth);
-            float volume = CueVolume * Spatial.DistanceVolume(dist, RefDistance, VolumeFloor);
-            _audio.PlayCue(AudioCue.CursorEnter, volume, pan);
+            _cues.Play(AudioCue.CursorEnter,
+                       _scanFrom,
+                       from => item.Bounds.NearestPoint(from),
+                       dist => CueVolume * Spatial.DistanceVolume(dist, RefDistance, VolumeFloor),
+                       PanWidth);
         }
 
         // The current category's live list: the accessible-and-visible things (what a sighted player could

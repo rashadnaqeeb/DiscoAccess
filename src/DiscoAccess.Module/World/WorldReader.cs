@@ -40,6 +40,7 @@ namespace DiscoAccess.Module.World
 
         private readonly IModHost _host;
         private readonly IAudioEngine _audio;
+        private readonly SpatialSources _sources;
         private readonly Overlay _overlay;
         private readonly ObjectCueSystem _objects;
         private readonly SpatialSystem _spatial;
@@ -63,12 +64,18 @@ namespace DiscoAccess.Module.World
         {
             _host = host;
             _audio = host.Audio;
+            // The tracked positional one-shots (the blips and pings, the sonar when it lands): fired here,
+            // re-placed each frame in Tick so they follow a moving listener. Owns the spatial-cue toggles,
+            // so every cue gates through the same settings.
+            _sources = new SpatialSources(_audio, host.LogWarning);
+            _sources.BindSpatialCues(() => host.Settings.AudioItd.Value,
+                                     () => host.Settings.AudioFrontBackFilter.Value);
             var env = new WorldEnvironment();
             _overlay = new Overlay(env, host.Speech);
             // The cursor's object sense: the enter/exit blips while gliding and the name of the thing under
             // the cursor on stop. Registered before the spatial system so its name leads the joined readout
             // ("crate; northeast, 2 meters"). Reads the same live registry the sonar and scanner will.
-            _objects = new ObjectCueSystem(_model, _audio);
+            _objects = new ObjectCueSystem(_model, _sources);
             _objects.BindMode(() => PlayMode.Continuous);
             _overlay.With(_objects);
             _spatial = new SpatialSystem();
@@ -85,7 +92,7 @@ namespace DiscoAccess.Module.World
             _districts = new DistrictReader(host);
             // The review cursor: browses the same live registry the cursor senses, sorted from the movement
             // cursor (the "look around from here" reference), speaking and pinging through the same pipes.
-            _scanner = new Scanner(_model, () => _overlay.Cursor.Position, host.Speech, _audio);
+            _scanner = new Scanner(_model, () => _overlay.Cursor.Position, host.Speech, _sources);
             Active = this;
         }
 
@@ -124,9 +131,13 @@ namespace DiscoAccess.Module.World
         /// north) and advance the interact verb. Call after input is polled.</summary>
         public void Tick(float dirX, float dirZ)
         {
+            // Re-place the live one-shots first, every frame regardless of world/ownership state: a voice
+            // fired a moment ago keeps tracking (and draining) through a conversation or an area exit.
+            _sources.Tick();
+
             bool inWorld = _inWorld; // resolved this frame by ResolveOwnership, which always runs first
             if (inWorld && !_engaged) { _overlay.OnEnter(); _engaged = true; }
-            else if (!inWorld && _engaged) { _overlay.OnExit(); _engaged = false; _walk.Abandon(); _scanner.Reset(); _hasLastPlayer = false; }
+            else if (!inWorld && _engaged) { _overlay.OnExit(); _engaged = false; _walk.Abandon(); _scanner.Reset(); _sources.Clear(); _hasLastPlayer = false; }
             if (!inWorld) { _wasGliding = false; return; }
 
             // A save load or scene transition repositions the character out from under the cursor, which keeps
@@ -135,7 +146,13 @@ namespace DiscoAccess.Module.World
             // character's own position instead. A one-step jump past a walk stride is a load or teleport, so
             // unpin the cursor back onto the character (silent: the district readout speaks the new location).
             Snv player = _overlay.Cursor.PlayerPosition;
-            if (_hasLastPlayer && Snv.Distance(player, _lastPlayer) > RepositionJump) _overlay.Cursor.Reset();
+            // The jump also invalidates any still-playing cue tails (their listener just moved across the
+            // map, or reads as the origin while the character is despawned mid-load) - stop tracking them.
+            if (_hasLastPlayer && Snv.Distance(player, _lastPlayer) > RepositionJump)
+            {
+                _overlay.Cursor.Reset();
+                _sources.Clear();
+            }
             _lastPlayer = player;
             _hasLastPlayer = true;
 

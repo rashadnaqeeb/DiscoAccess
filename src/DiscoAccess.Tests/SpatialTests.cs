@@ -1,3 +1,4 @@
+using System;
 using DiscoAccess.Core.World;
 using Xunit;
 
@@ -43,6 +44,66 @@ namespace DiscoAccess.Tests
             Assert.Equal(0.2f, Spatial.SweepGap(1, 0.75f, 0.1f, 0.2f), 3);
             Assert.Equal(0.1f, Spatial.SweepGap(20, 0.75f, 0.1f, 0.2f), 3);
             Assert.Equal(0.15f, Spatial.SweepGap(5, 0.75f, 0.1f, 0.2f), 3); // 0.75/5 = 0.15, in range
+        }
+
+        [Fact]
+        public void Cue_DueEast_PansRight_LeadsRightEar_StaysBright()
+        {
+            var cue = Spatial.Cue(10f, 0f, 3f);
+            Assert.Equal(1f, cue.Pan, 3);
+            Assert.Equal(0.00066f, cue.ItdSeconds, 5); // max head delay, left (far) ear lagging
+            Assert.Equal(20000f, cue.LowpassHz, 0);    // at the side line: no rear filter
+            Assert.Equal(0f, cue.WetMix, 3);
+        }
+
+        [Fact]
+        public void Cue_DueWest_MirrorsTheSigns()
+        {
+            var cue = Spatial.Cue(-10f, 0f, 3f);
+            Assert.Equal(-1f, cue.Pan, 3);
+            Assert.Equal(-0.00066f, cue.ItdSeconds, 5);
+        }
+
+        [Fact]
+        public void Cue_Ahead_IsCentredAndDry()
+        {
+            var cue = Spatial.Cue(0f, 5f, 3f);
+            Assert.Equal(0f, cue.Pan, 3);
+            Assert.Equal(0f, cue.ItdSeconds, 5);
+            Assert.Equal(20000f, cue.LowpassHz, 0);
+            Assert.Equal(0f, cue.WetMix, 3);
+        }
+
+        [Fact]
+        public void Cue_DueSouth_FullyMuffledAndMixed()
+        {
+            var cue = Spatial.Cue(0f, -5f, 3f);
+            Assert.Equal(0f, cue.Pan, 3);
+            Assert.Equal(500f, cue.LowpassHz, 0); // the muffled floor
+            Assert.Equal(0.5f, cue.WetMix, 3);    // half filtered, half dry
+        }
+
+        [Fact]
+        public void Cue_HalfwayBehind_RampsCutoffLogarithmically()
+        {
+            // dz/dist = -0.5 (30 degrees below the side line): cutoff at the log midpoint of the half-ramp,
+            // 20000 * (500/20000)^0.5 ~ 3162 Hz, and the wet mix at a quarter.
+            float dx = (float)Math.Sqrt(75.0), dz = -5f; // dist = 10
+            var cue = Spatial.Cue(dx, dz, 3f);
+            Assert.Equal(3162.3f, cue.LowpassHz, 1);
+            Assert.Equal(0.25f, cue.WetMix, 3);
+        }
+
+        [Fact]
+        public void Cue_Toggles_DropEachExtraCueAlone()
+        {
+            var noItd = Spatial.Cue(10f, 0f, 3f, itd: false);
+            Assert.Equal(1f, noItd.Pan, 3);           // pan survives
+            Assert.Equal(0f, noItd.ItdSeconds, 5);    // delay gated off
+
+            var noFilter = Spatial.Cue(0f, -5f, 3f, frontBack: false);
+            Assert.Equal(20000f, noFilter.LowpassHz, 0); // behind, but the filter is gated off
+            Assert.Equal(0f, noFilter.WetMix, 3);
         }
     }
 }

@@ -49,7 +49,7 @@ namespace DiscoAccess.Core.World.Overlays.Systems
         private const float MaxGlideStep = 2f;
 
         private readonly IWorldModel _model;
-        private readonly IAudioEngine _audio;
+        private readonly SpatialSources _cues;
 
         // The thing the cursor is currently inside (nearest), or null; compared by reference across frames
         // (the registry keeps one stable proxy per object). Baselined on the first active frame so arriving
@@ -66,10 +66,10 @@ namespace DiscoAccess.Core.World.Overlays.Systems
         private Vector3 _lastCursor;
         private bool _haveLast;
 
-        public ObjectCueSystem(IWorldModel model, IAudioEngine audio)
+        public ObjectCueSystem(IWorldModel model, SpatialSources cues)
         {
             _model = model;
-            _audio = audio;
+            _cues = cues;
         }
 
         public override string Name => WorldSystemObjectCue;
@@ -123,13 +123,19 @@ namespace DiscoAccess.Core.World.Overlays.Systems
             if (ReferenceEquals(confirmed, _inside)) return;
 
             // Entered a thing (incl. swapping object to object): rising click. Left to bare ground: falling
-            // click. Pan toward whichever thing the cue is about (one of the two is non-null whenever they
-            // differ). Only sound it on a real glide; a still cursor updates silently.
+            // click. Placed toward whichever thing the cue is about (one of the two is non-null whenever
+            // they differ): the nearest part of its footprint relative to the player, the same origin the
+            // spoken bearing uses, so the blip sounds where the readout will say the thing is - and a
+            // tracked source, so it keeps following while it plays (the player can be mid-walk). Only
+            // sound it on a real glide; a still cursor updates silently.
             if (moved)
             {
                 IWorldItem about = (confirmed ?? _inside)!;
-                _audio.PlayCue(confirmed != null ? AudioCue.CursorEnter : AudioCue.CursorExit, CueVolume,
-                               PanFor(about, player));
+                _cues.Play(confirmed != null ? AudioCue.CursorEnter : AudioCue.CursorExit,
+                           () => overlay.Cursor.PlayerPosition,
+                           p => about.Bounds.NearestPoint(p),
+                           _ => CueVolume,
+                           PanWidth);
             }
             _inside = confirmed;
         }
@@ -190,14 +196,5 @@ namespace DiscoAccess.Core.World.Overlays.Systems
             return best;
         }
 
-        // Pan for a thing's blip: its nearest part's lateral offset from the player, the same origin the
-        // spoken bearing uses, so the blip places the thing where the readout will say it is.
-        private static float PanFor(IWorldItem item, Vector3 player)
-        {
-            Vector3 np = item.Bounds.NearestPoint(player);
-            float dx = np.X - player.X, dz = np.Z - player.Z;
-            float dist = (float)System.Math.Sqrt(dx * dx + dz * dz);
-            return Spatial.Pan(dx, dist, PanWidth);
-        }
     }
 }

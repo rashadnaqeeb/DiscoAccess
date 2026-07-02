@@ -5,9 +5,10 @@ namespace DiscoAccess.Core.Audio
     /// <summary>
     /// The audio backend for the spatial soundscape (sonar pings, wall tones), owned by the host (the
     /// output device is a native handle, so it lives beside Prism and never reloads). The sensing systems
-    /// compute pan and volume themselves (via <see cref="DiscoAccess.Core.World.Spatial"/>) and hand the
-    /// already-placed sound here; the engine just plays it. Kept an interface so Core stays engine-free and
-    /// the implementation (NAudio) lives in the host.
+    /// compute the placement (pan + interaural delay + rear filter, a <see cref="SpatialCue"/>) and volume
+    /// themselves (via <see cref="DiscoAccess.Core.World.Spatial"/>) and hand the already-placed sound
+    /// here; the engine just plays it. Kept an interface so Core stays engine-free and the implementation
+    /// (NAudio) lives in the host.
     /// </summary>
     public interface IAudioEngine
     {
@@ -21,10 +22,12 @@ namespace DiscoAccess.Core.Audio
         void PlayOneShot(float frequency, float seconds, float volume, float pan);
 
         /// <summary>Fire a named one-shot cue (a sampled WAV the engine owns) already spatialized by the
-        /// caller: at <paramref name="volume"/> (0..1) and stereo <paramref name="pan"/> (-1 left .. 1 right).
-        /// Used for the cursor's enter/exit blips. A missing or unreadable asset plays nothing rather than
-        /// throwing.</summary>
-        void PlayCue(AudioCue cue, float volume, float pan);
+        /// caller: at <paramref name="volume"/> (0..1) and the full stereo <paramref name="placement"/>
+        /// (pan, interaural delay, rear lowpass). Used for the cursor's enter/exit blips and the scanner's
+        /// review ping. Returns the live voice handle so a tracked source (<see cref="SpatialSources"/>)
+        /// can re-place it each frame while it plays; null (nothing plays) when the device or the asset is
+        /// unavailable, rather than throwing.</summary>
+        ISpatialVoice? PlayCue(AudioCue cue, float volume, SpatialCue placement);
 
         /// <summary>Create the four directional wall-tone voices (driven each frame). Dispose removes them
         /// from the mixer.</summary>
