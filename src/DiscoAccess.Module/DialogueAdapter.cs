@@ -4,7 +4,8 @@ using DiscoPages;                         // DialogueBridgePages
 using PixelCrushers.DialogueSystem;       // DialogueManager, ConversationState, Response, SelectedResponseEventArgs
 using ConversationLogger = Sunshine.ConversationLogger;
 using UnityEngine;
-// LogEntry, LogRenderer, SunshineContinueButton, ContState, FinalEntry live in the global namespace.
+// LogEntry, LogRenderer, SunshineContinueButton, ContState, FinalEntry, and the tooltip data types
+// (TooltipDataHolder, TooltipData, CostTooltipData) live in the global namespace.
 
 namespace DiscoAccess.Module
 {
@@ -76,27 +77,50 @@ namespace DiscoAccess.Module
             return seq != null && seq.IsPlaying;
         }
 
+        /// <summary>The on-screen button rendering a response, matched by its destination entry (two
+        /// interop proxies of one response are not reference-equal), or null when none is on screen.</summary>
+        public static SunshineResponseButton FindButton(Response response)
+        {
+            DialogueEntry want = response != null ? response.destinationEntry : null;
+            if (want == null)
+                return null;
+            foreach (SunshineResponseButton b in Resources.FindObjectsOfTypeAll<SunshineResponseButton>())
+            {
+                if (b == null || !b.gameObject.activeInHierarchy)
+                    continue;
+                DialogueEntry have = b.response != null ? b.response.destinationEntry : null;
+                if (have != null && have.id == want.id && have.conversationID == want.conversationID)
+                    return b;
+            }
+            return null;
+        }
+
+        /// <summary>The game's own computed data for a money response - the cost and, for a purchase, the
+        /// resolved <c>InventoryItem</c> - read live from the response button's tooltip holder, the same
+        /// data its hover tooltip shows a sighted player. Null when the button is not on screen or the
+        /// response carries no cost data.</summary>
+        public static CostTooltipData CostData(Response response)
+        {
+            SunshineResponseButton b = FindButton(response);
+            TooltipDataHolder holder = b != null ? b.GetComponent<TooltipDataHolder>() : null;
+            TooltipData data = holder != null ? holder.tooltipData : null;
+            return data != null ? data.costTooltipData : null;
+        }
+
         /// <summary>Choose a player response by clicking its own on-screen button, the game's real click
         /// path. For a skill check that runs the full pipeline - rolls the dice, locks a white check, plays
         /// the dice animation, and records the result on the outcome line - which the bare
-        /// <c>conversationView.SelectResponse</c> skips, leaving the check unrolled and re-selectable. Match
-        /// the button to the response by its destination entry, since two interop proxies of one response
-        /// are not reference-equal. Falls back to the conversation API (logged) if no button is found, so a
-        /// plain response still advances even though a check there would not roll.</summary>
+        /// <c>conversationView.SelectResponse</c> skips, leaving the check unrolled and re-selectable.
+        /// Falls back to the conversation API (logged) if no button is found, so a plain response still
+        /// advances even though a check there would not roll.</summary>
         public static void SelectResponse(Response response, IModHost host)
         {
-            DialogueEntry want = response != null ? response.destinationEntry : null;
-            if (want != null)
-                foreach (SunshineResponseButton b in Resources.FindObjectsOfTypeAll<SunshineResponseButton>())
-                {
-                    if (b == null || !b.gameObject.activeInHierarchy || b.button == null)
-                        continue;
-                    DialogueEntry have = b.response != null ? b.response.destinationEntry : null;
-                    if (have == null || have.id != want.id || have.conversationID != want.conversationID)
-                        continue;
-                    b.button.onClick.Invoke();
-                    return;
-                }
+            SunshineResponseButton b = FindButton(response);
+            if (b != null && b.button != null)
+            {
+                b.button.onClick.Invoke();
+                return;
+            }
             host?.LogWarning("DialogueAdapter: no on-screen button matched the selected response; a check there "
                 + "will not roll. Falling back to the conversation API.");
             DialogueManager.conversationView.SelectResponse(new SelectedResponseEventArgs(response));

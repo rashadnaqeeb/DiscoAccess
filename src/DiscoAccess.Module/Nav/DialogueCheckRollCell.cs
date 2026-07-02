@@ -9,8 +9,10 @@ namespace DiscoAccess.Module.Nav
     /// <summary>
     /// The silent roll line for a resolved skill check, placed in the transcript just above the game's own
     /// outcome line. That outcome line already speaks the skill, difficulty and success/failure live, so
-    /// this carries only what it omits, the dice and the modifiers, read on demand when the player walks
-    /// the scrollback with Up. Never spoken on delivery (it is not the current line). Holds the live
+    /// this carries only what it omits - the dice, the modifiers, and the game's critical word on double
+    /// six or double ones; a passive check (no dice) reads just its bare total against the target, the
+    /// same numbers the game's hover tooltip shows - read on demand when the player walks the scrollback
+    /// with Up. Never spoken on delivery (it is not the current line). Holds the live
     /// <see cref="CheckResult"/> and reads it at speech time (never cached); the Unity-free composition is
     /// done by <see cref="CheckRollAnnouncer"/> in Core. Advertises no actions.
     /// </summary>
@@ -31,12 +33,16 @@ namespace DiscoAccess.Module.Nav
             return state == null ? string.Empty : TextFilter.Clean(CheckRollAnnouncer.Compose(state));
         }
 
-        // Extract the live roll into Unity-free data: the two dice, the skill value and name, the base
-        // (pre-modifier) target, and the target modifiers (raw bonus; the announcer negates to the effect
-        // on the player's check). Null when the check has not actually rolled (a forced or unresolved node).
+        // Extract the live check into Unity-free data: the two dice, the skill value and name, the base
+        // (pre-modifier) target, the target modifiers (raw bonus; the announcer negates to the effect on
+        // the player's check), and the game's own critical word when the dice came up double six or double
+        // ones - a critical overrides the arithmetic, so without it a numeric miss that succeeded reads as
+        // a contradiction. A passive check carries no dice, so it passes as passive and composes to just
+        // its total against the target. Null when the check neither rolled nor resolved passively (a
+        // forced or unresolved node).
         private static CheckRollState BuildState(CheckResult c)
         {
-            if (c == null || !c.HasRoll())
+            if (c == null || !(c.HasRoll() || c.checkType == CheckType.PASSIVE))
                 return null;
             var mods = new List<CheckRollModifier>();
             var src = c.applicableTargetModifiers;
@@ -52,7 +58,11 @@ namespace DiscoAccess.Module.Nav
                     name = name.TrimEnd().TrimEnd('.', ',', ';', ':');
                     mods.Add(new CheckRollModifier(name, m.bonus));
                 }
-            return new CheckRollState(c.die1, c.die2, c.SkillValue(), c.SkillName(), c.baseTarget, mods);
+            string critical = c.SixSix() ? Sunshine.ConstTooltip.critical_success
+                : c.Snakeyes() ? Sunshine.ConstTooltip.critical_failure
+                : null;
+            return new CheckRollState(c.die1, c.die2, c.SkillValue(), c.SkillName(), c.baseTarget, mods,
+                critical, c.checkType == CheckType.PASSIVE);
         }
     }
 }

@@ -103,15 +103,37 @@ namespace DiscoAccess.Module
             };
         }
 
-        // What the item does, read straight off its equip effects so it is correct for the item being
-        // announced (the shared tooltip lags a frame behind focus). Each effect's own full name already
-        // carries the sign, the affected skill, and the flavour line ("+1 Half Light: Head as battering
-        // ram"); we only strip its colour markup and join them.
+        // What the item does, read straight off its own model so it is correct for the item being
+        // announced (the shared tooltip lags a frame behind focus): the equip effects, then for a substance
+        // the effects-when-used riding its buffs, labelled with the game's own hover header so a drug's
+        // payload is not mistaken for a wear bonus. Each effect's own full name already carries the sign,
+        // the affected skill, and the flavour line ("+1 Half Light: Head as battering ram"); we only strip
+        // its colour markup and join them.
         private static string Effects(InventoryItem item)
         {
-            CharacterEffect[] effects = item.equipEffects;
-            if (effects == null || effects.Length == 0) return null;
-            var parts = new List<string>(effects.Length);
+            var parts = new List<string>();
+            AddEffects(item.equipEffects, parts);
+            if (item.substance && item.substanceBuffs != null)
+            {
+                var used = new List<string>();
+                foreach (CharacterBuff b in item.substanceBuffs)
+                    if (b != null)
+                        AddEffects(b.effects, used);
+                if (used.Count > 0)
+                {
+                    // The game's header is a format string ("Substance use effects: {0}"); the authored
+                    // fallback is a bare label, so it takes the list after a space.
+                    string header = GameLocalization.Term("TOOLTIP_HOVER_SUBSTANCE_USED_EFFECTS", Strings.ItemUseEffects);
+                    string list = string.Join(", ", used);
+                    parts.Add(header.Contains("{0}") ? string.Format(header, list) : header + " " + list);
+                }
+            }
+            return parts.Count > 0 ? string.Join(", ", parts) : null;
+        }
+
+        private static void AddEffects(CharacterEffect[] effects, List<string> parts)
+        {
+            if (effects == null) return;
             foreach (CharacterEffect e in effects)
             {
                 if (e == null) continue;
@@ -121,7 +143,6 @@ namespace DiscoAccess.Module
                 string full = e.EffectFullName();
                 if (!string.IsNullOrEmpty(full)) parts.Add(TextFilter.Clean(full));
             }
-            return parts.Count > 0 ? string.Join(", ", parts) : null;
         }
 
         // The selectable the game navigates a dock by (its button), for syncing the game cursor and running

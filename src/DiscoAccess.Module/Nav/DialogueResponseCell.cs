@@ -2,23 +2,26 @@ using System;
 using System.Collections.Generic;
 using DiscoAccess.Core.Strings;
 using DiscoAccess.Core.Text;
+using DiscoAccess.Core.UI;          // InventoryItemAnnouncer
 using DiscoAccess.Core.UI.Nav;
 using PixelCrushers.DialogueSystem; // Response
-using Sunshine.Metric;              // CheckResult, CheckModifier, CheckType
+using Sunshine.Metric;              // CheckResult, CheckModifier, CheckType, InventoryItem, PlayerCharacter
 using ConversationLogger = Sunshine.ConversationLogger;
-// WhiteCheckNode / RedCheckNode live in the global namespace.
+// WhiteCheckNode / RedCheckNode / FakeCheckNode / CostOptionNode live in the global namespace.
 
 namespace DiscoAccess.Module.Nav
 {
     /// <summary>
     /// One player response in the conversation, read live (never cached). The label is the game's own
     /// formatted answer text - which folds in the skill-check tag and odds when the response carries a check,
-    /// or a "[Locked]" prefix when a check is not yet open, gated by the same dialogue settings the on-screen
-    /// button uses - cleaned for speech. A disabled response stays focusable so it is announced (DE shows
-    /// locked checks and other unavailable options to a sighted player, and a locked check is a hint worth
-    /// surfacing), but only an enabled one advertises the activate action; activation goes through the game's
-    /// selection path, which advances the conversation and plays its own sound, so the next line announces
-    /// itself.
+    /// a "[Locked]" prefix when a check is not yet open (gated by the same dialogue settings the on-screen
+    /// button uses), or the formatted cost and afford/paid word on a money option - cleaned for speech. A
+    /// check response then reads its breakdown (see <see cref="CheckBreakdown"/>) and a money option its
+    /// wallet-and-item breakdown (see <see cref="CostBreakdown"/>), each composed to add only what the label
+    /// omits. A disabled response stays focusable so it is announced (DE shows locked checks and other
+    /// unavailable options to a sighted player, and a locked check is a hint worth surfacing), but only an
+    /// enabled one advertises the activate action; activation goes through the game's selection path, which
+    /// advances the conversation and plays its own sound, so the next line announces itself.
     /// </summary>
     internal sealed class DialogueResponseCell : UIElement
     {
@@ -44,23 +47,27 @@ namespace DiscoAccess.Module.Nav
             string label = _logger != null
                 ? _logger.FormatResponse(_number, _logger.ChooseResponseText(_response))
                 : _response?.formattedText?.text;
-            // A check response reads its breakdown after the option text. The breakdown is built against the
-            // label so it can drop what the label's own check tag already states (see CheckBreakdown). Join
-            // with a sentence break, but not a second period when the label already ends one (DE's answer
-            // text is a full sentence), so it does not read "clipboard.. white check".
-            string breakdown = CheckBreakdown(label);
+            // A check or money response reads its breakdown after the option text (the two node types are
+            // disjoint, so at most one applies). Each breakdown is built against the label so it can drop
+            // what the label already states (see CheckBreakdown / CostBreakdown). Join with a sentence
+            // break, but not a second period when the label already ends one (DE's answer text is a full
+            // sentence), so it does not read "clipboard.. white check".
+            string breakdown = CheckBreakdown(label) ?? CostBreakdown(label);
             if (!string.IsNullOrEmpty(breakdown))
                 label = string.IsNullOrEmpty(label) ? breakdown : label + SentenceJoin(label) + breakdown;
             return TextFilter.Clean(label);
         }
 
         // The skill-check breakdown for this response, read live from the game's own check computation, or
-        // null when the response carries no check. Reads "<colour> check, <odds>%" then "modifiers:
-        // <condition> <signed bonus>, ..." - the conditions that raise or lower the check, the same ones DE
-        // shows in its check tooltip. DE's answer label already opens with a check tag naming the skill and
-        // difficulty tier (e.g. "[Interfacing - Medium 10] ..."); when that tag is present we read only what
-        // it omits (colour, odds, modifiers) so the skill and difficulty are not spoken twice. When the tag
-        // is absent (its display is gated by dialogue settings) the skill and difficulty lead the breakdown.
+        // null when the response carries no check. Reads "<colour> check, <odds>%, your <total>" then
+        // "modifiers: <condition> <signed bonus>, ..." - the odds, the player's effective total (skill plus
+        // bonuses, modifiers folded in, the same value the check tooltip's Roll line shows pre-roll), and
+        // the conditions that raise or lower the check. DE's answer label already opens with a check tag
+        // naming the skill, difficulty tier, and target number (e.g. "[Interfacing - Medium 10] ..."); when
+        // that tag is present we read only what it omits so nothing is spoken twice. When the tag is absent
+        // (its display is gated by dialogue settings) the skill, then the difficulty with its target
+        // number, lead the breakdown instead. A fake check (the game's scripted atmosphere check) is
+        // tooltipped and styled as a red check, so it reads the same way.
         private string CheckBreakdown(string label)
         {
             DialogueEntry entry = _response != null ? _response.destinationEntry : null;
@@ -68,6 +75,7 @@ namespace DiscoAccess.Module.Nav
                 return null;
             CheckResult check = WhiteCheckNode.IsWhiteCheckNode(entry) ? WhiteCheckNode.GetCheck(entry)
                 : RedCheckNode.IsRedCheckNode(entry) ? RedCheckNode.GetCheck(entry)
+                : FakeCheckNode.IsFakeCheckNode(entry) ? FakeCheckNode.TransformCheck(entry)
                 : null;
             if (check == null)
                 return null;
@@ -80,15 +88,27 @@ namespace DiscoAccess.Module.Nav
             {
                 string difficulty = check.difficulty;
                 if (!string.IsNullOrEmpty(difficulty))
-                    head += ", " + difficulty;
+                    head += ", " + difficulty + " " + check.baseTarget;
             }
             head += ", " + (int)Math.Round(check.Probability() * 100) + "%";
 
-            var parts = new List<string> { head };
             // Only modifiers currently in effect, the ones the player has earned. Potential modifiers tied to
             // conditions not yet met (in allTargetModifiers but not these) are not shown - the game hides
             // unearned modifiers, so a locked check with nothing met reads no modifier list at all.
             var mods = check.applicableTargetModifiers;
+
+            // The player's effective total, modifiers folded onto the player side against the base target
+            // (the roll line's convention, and the game's own: its tooltip nets modifiers into the Roll
+            // value). The target it is measured against is already spoken - by the label's tag, or by the
+            // difficulty line above.
+            int modSum = 0;
+            if (mods != null)
+                for (int i = 0; i < mods.Count; i++)
+                    if (mods[i] != null)
+                        modSum += mods[i].bonus;
+            head += ", " + Strings.CheckYours + " " + (check.SkillValue() - modSum);
+
+            var parts = new List<string> { head };
             if (mods != null && mods.Count > 0)
             {
                 var lines = new List<string>();
@@ -111,6 +131,44 @@ namespace DiscoAccess.Module.Nav
                     parts.Add(Strings.CheckModifiers + ": " + string.Join(", ", lines));
             }
             return string.Join(". ", parts);
+        }
+
+        // The money breakdown for a cost option (a purchase, a bribe, the room), or null when the response
+        // carries no cost. The game's label already folds in its own formatted cost and an
+        // afford/locked/paid status word, so the amount is spoken here only when its digits are missing
+        // from the label; what the label never carries is added: the wallet ("you have <money>", so
+        // affordability is audible) and, for a purchase, the item's detail (name, effects, description),
+        // read from the same data the button's hover tooltip shows a sighted player. The cost and you-have
+        // words are the game's own tooltip terms so they localize.
+        private string CostBreakdown(string label)
+        {
+            DialogueEntry entry = _response != null ? _response.destinationEntry : null;
+            if (entry == null || !CostOptionNode.IsCostOptionNode(entry))
+                return null;
+
+            var parts = new List<string>(3);
+            int cost = CostOptionNode.GetCost(entry);
+            if (!ContainsMoney(label, cost))
+                parts.Add(GameLocalization.Term("TOOLTIP_COST", Strings.CostWord) + " " + Strings.WorldMoney(cost));
+            parts.Add(GameLocalization.Term("TOOLTIP_YOU_HAVE", Strings.CostYouHave) + " "
+                + Strings.WorldMoney(PlayerCharacter.Singleton.Money));
+
+            CostTooltipData data = DialogueAdapter.CostData(_response);
+            InventoryItem item = data != null ? data.item : null;
+            if (item != null)
+                parts.Add(InventoryItemAnnouncer.Compose(InventoryAdapter.ReadLoot(item)));
+            return string.Join(". ", parts);
+        }
+
+        // Whether the label already carries the cost amount (the game renders it as a currency glyph plus
+        // the centims over 100, "0.90"), checked against both decimal separators its culture formatter
+        // produces, so the amount is never read twice.
+        private static bool ContainsMoney(string label, int centims)
+        {
+            if (string.IsNullOrEmpty(label))
+                return false;
+            string amount = (centims / 100) + "." + (centims % 100).ToString("D2");
+            return label.Contains(amount) || label.Contains(amount.Replace('.', ','));
         }
 
         // The separator between DE's answer label and our check breakdown: a bare space when the label

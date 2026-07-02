@@ -130,9 +130,11 @@ namespace DiscoAccess.Module.Nav
             {
                 bool last = i == entries.Count - 1;
                 // A line that resolved a check gets a silent roll line above it: the dice and modifiers the
-                // game's own outcome line (skill, difficulty, success/failure) leaves out, read with Up.
+                // game's own outcome line (skill, difficulty, success/failure) leaves out, read with Up. A
+                // passive check resolves without dice, so its line is the bare total against the target.
                 FinalEntry fe = entries[i].Entry;
-                if (fe != null && fe.HasCheck && fe.checkResult != null && fe.checkResult.HasRoll())
+                if (fe != null && fe.HasCheck && fe.checkResult != null
+                    && (fe.checkResult.HasRoll() || fe.checkResult.checkType == Sunshine.Metric.CheckType.PASSIVE))
                     _flow.Add(new DialogueCheckRollCell(fe.checkResult));
                 var cell = last
                     ? new DialogueLineCell(entries[i], DialogueAdapter.ContinueAvailable, DialogueAdapter.Continue)

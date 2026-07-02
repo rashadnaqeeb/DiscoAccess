@@ -25,6 +25,17 @@ namespace DiscoAccess.Module
         }
 
         /// <summary>
+        /// Resolve one of DE's own UI terms through its localization wrapper (the same call the game's
+        /// tooltips make, so no category path is needed), falling back to the given authored word when the
+        /// term resolves to nothing or echoes its own name (a missing term).
+        /// </summary>
+        public static string Term(string term, string fallback)
+        {
+            string s = LocalizationCustomSystem.LocalizationManager.GetLocalizedTerm(term, false, true);
+            return string.IsNullOrEmpty(s) || s == term ? fallback : s;
+        }
+
+        /// <summary>
         /// A label's natural-case reading. The DE button bracket frame ("[ LOAD ]") is dropped first so the
         /// caption can be recased and never reads as "left bracket". When the label then carries a Localize
         /// whose translation, uppercased, is exactly the displayed text, the display is just that source

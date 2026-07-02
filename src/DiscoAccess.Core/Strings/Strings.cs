@@ -265,6 +265,16 @@ namespace DiscoAccess.Core.Strings
         public const string CheckRed = "red check";
         public const string CheckModifiers = "modifiers";
 
+        // Leads the player's effective total on an unrolled check (skill plus bonuses, modifiers folded
+        // in), read after the odds: "your 3". The target it is measured against is game text - the
+        // label's own check tag, or the difficulty-and-target pair when the tag is hidden.
+        public const string CheckYours = "your";
+
+        // Fallbacks for the game's cost-option tooltip terms (TOOLTIP_COST / TOOLTIP_YOU_HAVE), used
+        // only when a term fails to resolve; the game's words are preferred so they localize.
+        public const string CostWord = "cost";
+        public const string CostYouHave = "you have";
+
         // A resolved check's silent roll line, placed in the transcript above the game's own outcome line
         // (which already speaks the skill, difficulty and success/failure). It exposes the dice and the
         // modifiers as a running sum against the base target: "<total>/<target>: rolled <d1> plus <d2>,
@@ -303,6 +313,10 @@ namespace DiscoAccess.Core.Strings
         public const string InventorySlotEmpty = "empty";
         public const string InventoryNoItems = "no items";
         public const string InventoryFresh = "new";
+
+        // Fallback for the game's TOOLTIP_HOVER_SUBSTANCE_USED_EFFECTS header labelling a substance's
+        // effects-when-used, used only when the term fails to resolve; the game's word is preferred.
+        public const string ItemUseEffects = "effects when used";
 
         // Fallback equipment-slot captions, keyed off the dock name, used only when the game's own "<slot>Tag"
         // label is missing.

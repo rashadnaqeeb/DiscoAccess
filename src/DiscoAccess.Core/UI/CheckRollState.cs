@@ -3,10 +3,13 @@ using System.Collections.Generic;
 namespace DiscoAccess.Core.UI
 {
     /// <summary>
-    /// Unity-free snapshot of a resolved skill check's roll, extracted by the module adapter from the
-    /// game's <c>CheckResult</c> and composed into the silent transcript line by
+    /// Unity-free snapshot of a resolved skill check, extracted by the module adapter from the game's
+    /// <c>CheckResult</c> and composed into the silent transcript line by
     /// <see cref="CheckRollAnnouncer"/>. Holds the two dice, the skill value and name that fed the roll,
-    /// the base (pre-modifier) target, and the target modifiers in effect. Each modifier's
+    /// the base (pre-modifier) target, the target modifiers in effect, the game's own critical word when
+    /// the dice came up double six or double ones (a critical overrides the arithmetic, so a roll that
+    /// misses its target numerically can still succeed), and whether the check was passive (no dice; the
+    /// game displays its roll as the skill value plus a flat base). Each modifier's
     /// <see cref="CheckRollModifier.Bonus"/> is the raw amount it adds to the target, so a positive bonus
     /// raises the bar (a hindrance); the announcer negates it to the effect on the player's check.
     /// </summary>
@@ -18,9 +21,11 @@ namespace DiscoAccess.Core.UI
         public string SkillName { get; }
         public int BaseTarget { get; }
         public IReadOnlyList<CheckRollModifier> Modifiers { get; }
+        public string? Critical { get; }
+        public bool Passive { get; }
 
         public CheckRollState(int die1, int die2, int skillValue, string skillName, int baseTarget,
-            IReadOnlyList<CheckRollModifier> modifiers)
+            IReadOnlyList<CheckRollModifier> modifiers, string? critical = null, bool passive = false)
         {
             Die1 = die1;
             Die2 = die2;
@@ -28,6 +33,8 @@ namespace DiscoAccess.Core.UI
             SkillName = skillName;
             BaseTarget = baseTarget;
             Modifiers = modifiers;
+            Critical = critical;
+            Passive = passive;
         }
     }
 

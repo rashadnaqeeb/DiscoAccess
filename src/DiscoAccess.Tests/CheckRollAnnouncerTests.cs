@@ -49,5 +49,37 @@ namespace DiscoAccess.Tests
             Assert.Equal("11/12: rolled 3 plus 3, plus 4 Logic, minus 1 Drunk, plus 2 Hunch",
                 CheckRollAnnouncer.Compose(s));
         }
+
+        // The critical word (game text, passed through) ends the line: a double six succeeds even when the
+        // total misses the target, so without it 14/15 followed by the game's Success reads as a
+        // contradiction.
+        [Fact]
+        public void Compose_Critical_AppendsGameWord()
+        {
+            var s = new CheckRollState(6, 6, 2, "Savoir Faire", 15, new List<CheckRollModifier>(),
+                "Critical success");
+            Assert.Equal("14/15: rolled 6 plus 6, plus 2 Savoir Faire, Critical success",
+                CheckRollAnnouncer.Compose(s));
+        }
+
+        // A passive check reads just the bare headline: no dice, the flat passive base of 6 folded into
+        // the total the way the game's tooltip displays it (skill 5 shows as roll 11).
+        [Fact]
+        public void Compose_Passive_ReadsBareTotalOverTarget()
+        {
+            var s = new CheckRollState(0, 0, 5, "Volition", 10, new List<CheckRollModifier>(),
+                critical: null, passive: true);
+            Assert.Equal("11/10", CheckRollAnnouncer.Compose(s));
+        }
+
+        // A passive check's modifiers still net into its total (7 + 6 - 1), even though the line stays bare.
+        [Fact]
+        public void Compose_PassiveWithModifier_NetsIntoTotal()
+        {
+            var s = new CheckRollState(0, 0, 7, "Empathy", 13,
+                new List<CheckRollModifier> { new CheckRollModifier("Drunk", 1) },
+                critical: null, passive: true);
+            Assert.Equal("12/13", CheckRollAnnouncer.Compose(s));
+        }
     }
 }
