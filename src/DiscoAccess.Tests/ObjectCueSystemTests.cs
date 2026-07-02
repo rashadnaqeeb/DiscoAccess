@@ -21,8 +21,9 @@ namespace DiscoAccess.Tests
             public bool HasControl => Control;
             public Vector3 TraceMove(Vector3 from, Vector3 intended) => intended;
             public float WallDistance(Vector3 from, Vector3 dir, float range) => range;
-            public void FocusCamera(Vector3 point) { }
-            public void ReleaseCamera() { }
+            public bool InView(Vector3 point) => true;
+            public Vector3 ClampToView(Vector3 point) => point;
+            public bool IsFogged(Vector3 point) => false;
         }
 
         private sealed class FakeBackend : ISpeechBackend
@@ -74,7 +75,8 @@ namespace DiscoAccess.Tests
             var env = new FakeEnv();
             var model = new FakeModel();
             var audio = new FakeAudioEngine();
-            var overlay = new Overlay(env, new SpeechPipeline(backend ?? new FakeBackend()));
+            var overlay = new Overlay(env, new SpeechPipeline(backend ?? new FakeBackend()),
+                                      new SpatialSources(audio, _ => { }));
             var sys = new ObjectCueSystem(model, new SpatialSources(audio, _ => { }));
             sys.BindMode(() => PlayMode.Continuous);
             overlay.With(sys);
@@ -380,7 +382,8 @@ namespace DiscoAccess.Tests
             var backend = new FakeBackend();
             var env = new FakeEnv();
             var model = new FakeModel();
-            var overlay = new Overlay(env, new SpeechPipeline(backend));
+            var overlay = new Overlay(env, new SpeechPipeline(backend),
+                                      new SpatialSources(new FakeAudioEngine(), _ => { }));
             var objects = new ObjectCueSystem(model, new SpatialSources(new FakeAudioEngine(), _ => { }));
             objects.BindMode(() => PlayMode.Continuous);
             var spatial = new SpatialSystem();

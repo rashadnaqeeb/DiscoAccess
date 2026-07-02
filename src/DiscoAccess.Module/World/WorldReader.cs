@@ -41,6 +41,7 @@ namespace DiscoAccess.Module.World
         private readonly IModHost _host;
         private readonly IAudioEngine _audio;
         private readonly SpatialSources _sources;
+        private readonly WorldEnvironment _env;
         private readonly Overlay _overlay;
         private readonly ObjectCueSystem _objects;
         private readonly SpatialSystem _spatial;
@@ -70,8 +71,8 @@ namespace DiscoAccess.Module.World
             _sources = new SpatialSources(_audio, host.LogWarning);
             _sources.BindSpatialCues(() => host.Settings.AudioItd.Value,
                                      () => host.Settings.AudioFrontBackFilter.Value);
-            var env = new WorldEnvironment();
-            _overlay = new Overlay(env, host.Speech);
+            _env = new WorldEnvironment();
+            _overlay = new Overlay(_env, host.Speech, _sources);
             // The cursor's object sense: the enter/exit blips while gliding and the name of the thing under
             // the cursor on stop. Registered before the spatial system so its name leads the joined readout
             // ("crate; northeast, 2 meters"). Reads the same live registry the sonar and scanner will.
@@ -84,15 +85,16 @@ namespace DiscoAccess.Module.World
             _overlay.With(_spatial);
             // Wall tones: continuous when the player chose it, else only while the cursor is gliding (and the
             // brief linger after). The same env backs the cursor clamp and the wall-distance cast.
-            _wallTones = new WallToneSystem(env, _audio);
+            _wallTones = new WallToneSystem(_env, _audio);
             _wallTones.BindMode(() => host.Settings.WallTonesContinuous.Value ? PlayMode.Continuous : PlayMode.WhenMoving);
             _wallTones.BindVolume(() => host.Settings.WallToneVolume.Fraction);
             _overlay.With(_wallTones);
             _walk = new WalkInteract(host);
             _districts = new DistrictReader(host);
-            // The review cursor: browses the same live registry the cursor senses, sorted from the movement
-            // cursor (the "look around from here" reference), speaking and pinging through the same pipes.
-            _scanner = new Scanner(_model, () => _overlay.Cursor.Position, host.Speech, _sources);
+            // The review cursor: browses the same live registry the cursor senses, scoped by the same env
+            // (in-frame, unfogged), sorted from the movement cursor (the "look around from here" reference),
+            // speaking and pinging through the same pipes.
+            _scanner = new Scanner(_model, _env, () => _overlay.Cursor.Position, host.Speech, _sources);
             Active = this;
         }
 
@@ -171,6 +173,11 @@ namespace DiscoAccess.Module.World
                 return;
             }
 
+            // Hold the zoom at the area's maximum while we drive, so the cursor's roam window (the visible
+            // frame) stays as wide and as consistent as the game allows. Only while owning, so dialogue and
+            // cutscene zoom sequences are never fought.
+            _env.PinZoom();
+
             _overlay.Tick(dt, dirX, dirZ, GlideSpeed);
             // Read the cursor's new spot when a glide stroke ends (keys released) - the natural "where am I
             // now" - rather than every frame, which would be a wall of speech.
@@ -230,8 +237,8 @@ namespace DiscoAccess.Module.World
         public void ScanPrevCategory() { if (_engaged) _scanner.StepCategory(-1); }
 
         /// <summary>Plant the movement cursor on the scanned thing (Home) - the explicit opt-in bridge from
-        /// reviewing to being there: the camera follows the cursor, so this is also "go look at it" (streams
-        /// orbs in around it), and the point readout then names it exactly as a glide arrival would.</summary>
+        /// reviewing to being there. The scanner only offers in-frame things, so the landing is always inside
+        /// the cursor's roam window, and the point readout names it exactly as a glide arrival would.</summary>
         public void ScanCursorTo()
         {
             if (!_engaged) return;

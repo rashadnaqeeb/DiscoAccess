@@ -17,12 +17,14 @@ namespace DiscoAccess.Core.World
     ///
     /// The list is rebuilt from the live registry on every keypress, never held across presses - the world
     /// set changes as rooms reveal and orbs stream - and the selection is continued by proxy identity, which
-    /// the registry keeps stable. The set is what a sighted player with this build could see and act on:
-    /// <see cref="IWorldItem.IsAccessible"/> and <see cref="IWorldItem.IsVisible"/> both required, the same
-    /// gate the movement cursor's own sense uses. Sorted nearest-first from the scan reference (the movement
-    /// cursor), so "next" walks outward, and re-sorting from a moved cursor is the "look around from here"
-    /// behaviour. Categories are <see cref="WorldTaxonomy.Scan"/> plus a synthetic Everything at index 0;
-    /// stepping categories skips empty ones (Everything always lands, even empty).
+    /// the registry keeps stable. The set is what a sighted player could see and act on right now:
+    /// <see cref="IWorldItem.IsAccessible"/> and <see cref="IWorldItem.IsVisible"/> both required (the same
+    /// gate the movement cursor's own sense uses), inside the camera's visible frame, and not under
+    /// unrevealed fog of war - so every offered thing is rendered, revealed, and reachable by the cursor,
+    /// and discovery of the wider world is walking. Sorted nearest-first from the scan reference (the
+    /// movement cursor), so "next" walks outward, and re-sorting from a moved cursor is the "look around
+    /// from here" behaviour. Categories are <see cref="WorldTaxonomy.Scan"/> plus a synthetic Everything at
+    /// index 0; stepping categories skips empty ones (Everything always lands, even empty).
     /// </summary>
     public sealed class Scanner
     {
@@ -35,6 +37,7 @@ namespace DiscoAccess.Core.World
         private const float CueVolume = 0.7f;
 
         private readonly IWorldModel _model;
+        private readonly Overlays.IWorldEnvironment _env;
         private readonly Func<Vector3> _scanFrom;
         private readonly SpeechPipeline _speech;
         private readonly SpatialSources _cues;
@@ -47,9 +50,11 @@ namespace DiscoAccess.Core.World
         private IWorldItem? _selected;
         private bool _entered;
 
-        public Scanner(IWorldModel model, Func<Vector3> scanFrom, SpeechPipeline speech, SpatialSources cues)
+        public Scanner(IWorldModel model, Overlays.IWorldEnvironment env, Func<Vector3> scanFrom,
+                       SpeechPipeline speech, SpatialSources cues)
         {
             _model = model;
+            _env = env;
             _scanFrom = scanFrom;
             _speech = speech;
             _cues = cues;
@@ -140,22 +145,32 @@ namespace DiscoAccess.Core.World
                        PanWidth);
         }
 
-        // The current category's live list: the accessible-and-visible things (what a sighted player could
-        // see and act on), category-filtered through the door-folds-into-exit mapping, sorted nearest-first
-        // from the scan reference by body position. Rebuilt on every press; never cached.
+        // The current category's live list: the accessible-and-visible things inside the visible frame and
+        // clear of fog (what a sighted player could see and act on right now), category-filtered through the
+        // door-folds-into-exit mapping, sorted nearest-first from the scan reference by body position.
+        // Rebuilt on every press; never cached.
         private List<IWorldItem> Build(Vector3 from)
         {
             string? cat = _catIndex <= 0 ? null : WorldTaxonomy.Scan[_catIndex - 1];
             var list = new List<IWorldItem>();
             foreach (IWorldItem it in _model.Items)
             {
-                if (!it.IsAccessible || !it.IsVisible) continue;
+                if (!Offered(it, from)) continue;
                 if (cat != null && WorldTaxonomy.ScanCategory(it.Category) != cat) continue;
                 list.Add(it);
             }
             list.Sort((a, b) => Geo.Distance(a.Position, from).CompareTo(Geo.Distance(b.Position, from)));
             return list;
         }
+
+        // The one offering gate Build and CountIn share, so the category counts can never disagree with the
+        // list. In-frame is tested at the thing's part nearest the scan reference, so a wide thing that pokes
+        // into the frame (a doorway half in view) still counts; the fog test is belt-and-braces on top of the
+        // game deactivating fogged interactables itself, making the contract explicit rather than inherited.
+        private bool Offered(IWorldItem it, Vector3 from)
+            => it.IsAccessible && it.IsVisible
+               && _env.InView(it.Bounds.NearestPoint(from))
+               && !_env.IsFogged(it.Position);
 
         // The next category index with things in it, walking dir-wise with wrap-around; Everything (index 0)
         // always qualifies, so the walk terminates. Counted against the same live filter the list uses.
@@ -166,16 +181,16 @@ namespace DiscoAccess.Core.World
             for (int step = 0; step < n; step++)
             {
                 i = ((i + dir) % n + n) % n;
-                if (i == 0 || CountIn(WorldTaxonomy.Scan[i - 1]) > 0) return i;
+                if (i == 0 || CountIn(WorldTaxonomy.Scan[i - 1], from) > 0) return i;
             }
             return _catIndex;
         }
 
-        private int CountIn(string cat)
+        private int CountIn(string cat, Vector3 from)
         {
             int count = 0;
             foreach (IWorldItem it in _model.Items)
-                if (it.IsAccessible && it.IsVisible && WorldTaxonomy.ScanCategory(it.Category) == cat) count++;
+                if (Offered(it, from) && WorldTaxonomy.ScanCategory(it.Category) == cat) count++;
             return count;
         }
 

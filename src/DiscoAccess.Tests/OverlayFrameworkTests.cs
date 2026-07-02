@@ -1,5 +1,8 @@
+using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
+using DiscoAccess.Core.Audio;
 using DiscoAccess.Core.Speech;
 using DiscoAccess.Core.World.Overlays;
 using Xunit;
@@ -11,21 +14,24 @@ namespace DiscoAccess.Tests
     [Collection("UsesSpeechPipeline")]
     public class OverlayFrameworkTests
     {
-        // A scripted environment: fixed player position, controllable HasControl, and a TraceMove that
-        // either passes the intended point through (open ground) or clamps to a wall.
+        // A scripted environment: fixed player position, controllable HasControl, a TraceMove that either
+        // passes the intended point through (open ground) or clamps to a wall, and scriptable view/fog
+        // bounds (everything in view and unfogged by default).
         private sealed class FakeEnv : IWorldEnvironment
         {
             public Vector3 Player = new Vector3(0f, 0f, 0f);
             public bool Control = true;
             public Vector3? Wall; // when set, TraceMove returns this regardless of intent (blocked)
-            public readonly List<Vector3> Focused = new List<Vector3>(); // camera focus points, in order
+            public Func<Vector3, bool> ViewFn = _ => true;
+            public Func<Vector3, Vector3> ClampFn = p => p;
+            public Func<Vector3, bool> FogFn = _ => false;
             public Vector3 PlayerPosition => Player;
             public bool HasControl => Control;
             public Vector3 TraceMove(Vector3 from, Vector3 intended) => Wall ?? intended;
             public float WallDistance(Vector3 from, Vector3 direction, float range) => range; // open in every direction
-            public int Released; // camera-lock releases
-            public void FocusCamera(Vector3 point) => Focused.Add(point);
-            public void ReleaseCamera() => Released++;
+            public bool InView(Vector3 point) => ViewFn(point);
+            public Vector3 ClampToView(Vector3 point) => ClampFn(point);
+            public bool IsFogged(Vector3 point) => FogFn(point);
         }
 
         private sealed class FakeBackend : ISpeechBackend
@@ -58,6 +64,10 @@ namespace DiscoAccess.Tests
             public override string Key => "fakeB";
         }
 
+        private static Overlay NewOverlay(FakeEnv env, ISpeechBackend? backend = null, FakeAudioEngine? audio = null)
+            => new Overlay(env, new SpeechPipeline(backend ?? new FakeBackend()),
+                           new SpatialSources(audio ?? new FakeAudioEngine(), _ => { }));
+
         // ---- cursor + motion ----
 
         [Fact]
@@ -87,6 +97,92 @@ namespace DiscoAccess.Tests
             Assert.Equal(new Vector3(1f, 0f, 0f), cursor.Position);
         }
 
+        // ---- the senses' bounds: view edge, fog, and the impassable bump ----
+
+        [Fact]
+        public void Glide_BlockedAtViewEdge_StaysAndBumpsOnce()
+        {
+            var env = new FakeEnv { ViewFn = p => p.X <= 2f };
+            var audio = new FakeAudioEngine();
+            var overlay = NewOverlay(env, audio: audio);
+
+            overlay.Tick(1f, 1f, 0f, speed: 4f); // one 4 m step east lands out of view: refused
+            Assert.Equal(env.Player, overlay.Cursor.Position);
+            var (cue, _, placement) = Assert.Single(audio.Played);
+            Assert.Equal(AudioCue.CursorImpassable, cue);
+            Assert.True(placement.Pan > 0f); // bumped toward the refused east
+
+            overlay.Tick(1f, 1f, 0f, speed: 4f); // still holding into the edge: no drone
+            Assert.Single(audio.Played);
+
+            overlay.Tick(0.1f, 0f, 0f, speed: 4f); // releasing re-arms
+            overlay.Tick(1f, 1f, 0f, speed: 4f);
+            Assert.Equal(2, audio.Played.Count);
+        }
+
+        [Fact]
+        public void Glide_Diagonal_SlidesAlongViewEdge_Silently()
+        {
+            var env = new FakeEnv { ViewFn = p => p.X <= 0.5f };
+            var audio = new FakeAudioEngine();
+            var overlay = NewOverlay(env, audio: audio);
+
+            overlay.Tick(1f, 1f, 1f, speed: 4f); // northeast: east is out of view, north still passes
+            Assert.Equal(0f, overlay.Cursor.Position.X, 3);
+            Assert.True(overlay.Cursor.Position.Z > 1f); // slid north along the edge
+            Assert.Empty(audio.Played);
+        }
+
+        [Fact]
+        public void Glide_IntoFog_StaysAndBumps()
+        {
+            var env = new FakeEnv { FogFn = p => p.X > 2f };
+            var audio = new FakeAudioEngine();
+            var overlay = NewOverlay(env, audio: audio);
+
+            overlay.Tick(1f, 1f, 0f, speed: 4f);
+            Assert.Equal(env.Player, overlay.Cursor.Position);
+            Assert.Equal(AudioCue.CursorImpassable, Assert.Single(audio.Cues));
+        }
+
+        [Fact]
+        public void Glide_WallStop_StaysSilent()
+        {
+            var env = new FakeEnv { Wall = Vector3.Zero }; // navmesh clamps every step back to the origin
+            var audio = new FakeAudioEngine();
+            var overlay = NewOverlay(env, audio: audio);
+
+            overlay.Tick(1f, 1f, 0f, speed: 4f); // pinned, but by a wall: the wall tones own that story
+            Assert.Empty(audio.Played);
+        }
+
+        [Fact]
+        public void FrameDrag_PullsCursorBackInView()
+        {
+            var env = new FakeEnv();
+            var overlay = NewOverlay(env);
+            overlay.Cursor.Position = new Vector3(5f, 0f, 0f);
+
+            env.ViewFn = p => p.X <= 3f; // the frame moved (the character walked west)
+            env.ClampFn = p => new Vector3(3f, p.Y, p.Z);
+            overlay.Tick(0.1f, 0f, 0f, speed: 4f);
+            Assert.Equal(new Vector3(3f, 0f, 0f), overlay.Cursor.Position);
+        }
+
+        [Fact]
+        public void FrameDrag_AndBump_InertWhileInputInactive()
+        {
+            var env = new FakeEnv { ViewFn = p => p.X <= 3f, ClampFn = p => new Vector3(3f, p.Y, p.Z) };
+            var audio = new FakeAudioEngine();
+            var overlay = NewOverlay(env, audio: audio);
+            overlay.Cursor.Position = new Vector3(5f, 0f, 0f);
+            overlay.InputActive = false; // a menu floats over the world
+
+            overlay.Tick(0.1f, 0f, 0f, speed: 4f);
+            Assert.Equal(new Vector3(5f, 0f, 0f), overlay.Cursor.Position); // not dragged
+            Assert.Empty(audio.Played);
+        }
+
         [Fact]
         public void MotionTracker_LingersThenClears()
         {
@@ -104,7 +200,7 @@ namespace DiscoAccess.Tests
         public void ShouldPlay_FollowsModeAndMotion()
         {
             var env = new FakeEnv();
-            var overlay = new Overlay(env, new SpeechPipeline(new FakeBackend()));
+            var overlay = NewOverlay(env);
             var sys = new FakeSystem("x");
             overlay.With(sys);
 
@@ -133,7 +229,7 @@ namespace DiscoAccess.Tests
         public void ForceHeld_OverridesOffMode()
         {
             var env = new FakeEnv();
-            var overlay = new Overlay(env, new SpeechPipeline(new FakeBackend()));
+            var overlay = NewOverlay(env);
             var sys = new FakeSystem("x");
             overlay.With(sys);
             sys.BindMode(() => PlayMode.Off);
@@ -147,7 +243,7 @@ namespace DiscoAccess.Tests
         public void Cursor_DoesNotDriftWithoutControl()
         {
             var env = new FakeEnv { Control = false };
-            var overlay = new Overlay(env, new SpeechPipeline(new FakeBackend()));
+            var overlay = NewOverlay(env);
             overlay.Tick(1f, 1f, 0f, speed: 100f); // holding east, but no control
             Assert.Equal(env.Player, overlay.Cursor.Position);
         }
@@ -159,7 +255,7 @@ namespace DiscoAccess.Tests
         {
             var env = new FakeEnv();
             var backend = new FakeBackend();
-            var overlay = new Overlay(env, new SpeechPipeline(backend));
+            var overlay = NewOverlay(env, backend);
 
             var a = new FakeSystem("alpha");
             var b = new FakeSystemB("beta");
@@ -176,7 +272,7 @@ namespace DiscoAccess.Tests
         {
             var env = new FakeEnv();
             var backend = new FakeBackend();
-            var overlay = new Overlay(env, new SpeechPipeline(backend));
+            var overlay = NewOverlay(env, backend);
 
             var a = new FakeSystem("alpha");
             var b = new FakeSystemB("beta");
@@ -192,7 +288,7 @@ namespace DiscoAccess.Tests
         public void With_IsOnePerType_DuplicateReplaces()
         {
             var env = new FakeEnv();
-            var overlay = new Overlay(env, new SpeechPipeline(new FakeBackend()));
+            var overlay = NewOverlay(env);
             var first = new FakeSystem("one");
             var second = new FakeSystem("two");
             overlay.With(first).With(second);

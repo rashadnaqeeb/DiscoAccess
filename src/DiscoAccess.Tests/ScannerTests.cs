@@ -27,7 +27,12 @@ namespace DiscoAccess.Tests
             public bool Visible { get; set; } = true;
             public bool Accessible { get; set; } = true;
             public string Cat { get; set; } = WorldTaxonomy.Interactable;
-            public ScanBounds Bounds => ScanBounds.Point(Position);
+            // A footprint half-extent: 0 is a point (the default), >0 a square Box, so a test can model a
+            // wide thing whose edge pokes into the frame.
+            public float HalfExtent { get; set; }
+            public ScanBounds Bounds => HalfExtent > 0f
+                ? ScanBounds.Box(Position, HalfExtent, HalfExtent)
+                : ScanBounds.Point(Position);
             public string Category => Cat;
             public bool IsAccessible => Accessible;
             public bool IsVisible => Visible;
@@ -45,14 +50,29 @@ namespace DiscoAccess.Tests
             public event Action<IWorldItem> Removed { add { } remove { } }
         }
 
-        private static (Scanner scanner, FakeModel model, FakeBackend speech, FakeAudioEngine audio) Build()
+        // Everything in view and unfogged unless a test scripts otherwise.
+        private sealed class FakeEnv : DiscoAccess.Core.World.Overlays.IWorldEnvironment
+        {
+            public Func<Vector3, bool> ViewFn = _ => true;
+            public Func<Vector3, bool> FogFn = _ => false;
+            public Vector3 PlayerPosition => Vector3.Zero;
+            public bool HasControl => true;
+            public Vector3 TraceMove(Vector3 from, Vector3 intended) => intended;
+            public float WallDistance(Vector3 from, Vector3 direction, float range) => range;
+            public bool InView(Vector3 point) => ViewFn(point);
+            public Vector3 ClampToView(Vector3 point) => point;
+            public bool IsFogged(Vector3 point) => FogFn(point);
+        }
+
+        private static (Scanner scanner, FakeModel model, FakeBackend speech, FakeAudioEngine audio, FakeEnv env) Build()
         {
             var model = new FakeModel();
             var speech = new FakeBackend();
             var audio = new FakeAudioEngine();
-            var scanner = new Scanner(model, () => Vector3.Zero, new SpeechPipeline(speech),
+            var env = new FakeEnv();
+            var scanner = new Scanner(model, env, () => Vector3.Zero, new SpeechPipeline(speech),
                                       new SpatialSources(audio, _ => { }));
-            return (scanner, model, speech, audio);
+            return (scanner, model, speech, audio, env);
         }
 
         private static FakeItem At(float x, float z, string name = "thing",
@@ -62,7 +82,7 @@ namespace DiscoAccess.Tests
         [Fact]
         public void FirstPress_LandsOnNearest_WithoutStepping()
         {
-            var (scanner, model, speech, _) = Build();
+            var (scanner, model, speech, _, _) = Build();
             model.List.Add(At(5f, 0f, "far"));
             model.List.Add(At(1f, 0f, "near"));
 
@@ -74,7 +94,7 @@ namespace DiscoAccess.Tests
         [Fact]
         public void SecondPress_StepsOutward_AndWraps()
         {
-            var (scanner, model, speech, _) = Build();
+            var (scanner, model, speech, _, _) = Build();
             model.List.Add(At(1f, 0f, "near"));
             model.List.Add(At(5f, 0f, "far"));
 
@@ -88,7 +108,7 @@ namespace DiscoAccess.Tests
         [Fact]
         public void SteppingBackward_FromFresh_LandsOnFarthest()
         {
-            var (scanner, model, speech, _) = Build();
+            var (scanner, model, speech, _, _) = Build();
             model.List.Add(At(1f, 0f, "near"));
             model.List.Add(At(5f, 0f, "far"));
 
@@ -99,7 +119,7 @@ namespace DiscoAccess.Tests
         [Fact]
         public void SelectionContinues_AcrossARebuild()
         {
-            var (scanner, model, speech, _) = Build();
+            var (scanner, model, speech, _, _) = Build();
             var near = At(2f, 0f, "near");
             var far = At(5f, 0f, "far");
             model.List.Add(near);
@@ -114,7 +134,7 @@ namespace DiscoAccess.Tests
         [Fact]
         public void VanishedSelection_ReentersAtNearest()
         {
-            var (scanner, model, speech, _) = Build();
+            var (scanner, model, speech, _, _) = Build();
             var near = At(1f, 0f, "near");
             model.List.Add(near);
             model.List.Add(At(5f, 0f, "far"));
@@ -128,7 +148,7 @@ namespace DiscoAccess.Tests
         [Fact]
         public void InaccessibleAndInvisible_AreNeverOffered()
         {
-            var (scanner, model, speech, _) = Build();
+            var (scanner, model, speech, _, _) = Build();
             model.List.Add(new FakeItem { Position = new Vector3(1f, 0f, 0f), Name = "litter", Accessible = false });
             model.List.Add(new FakeItem { Position = new Vector3(2f, 0f, 0f), Name = "hidden", Visible = false });
             model.List.Add(At(5f, 0f, "real"));
@@ -140,9 +160,55 @@ namespace DiscoAccess.Tests
         }
 
         [Fact]
+        public void OutOfView_IsNeverOffered_AndCountsAgree()
+        {
+            var (scanner, model, speech, _, env) = Build();
+            env.ViewFn = p => p.X <= 10f; // the frame ends at 10 m east
+            model.List.Add(At(2f, 0f, "near crate", WorldTaxonomy.Container));
+            model.List.Add(At(80f, 0f, "distant crate", WorldTaxonomy.Container));
+
+            scanner.StepCategory(1); // Everything: only the in-frame thing counts
+            Assert.StartsWith("everything, 1; near crate; ", speech.Spoken[^1]);
+            scanner.StepItem(1); // wraps on the one-item list, never reaching the far one
+            Assert.StartsWith("near crate; ", speech.Spoken[^1]);
+        }
+
+        [Fact]
+        public void WideThing_PokingIntoTheFrame_StillOffered()
+        {
+            var (scanner, model, speech, _, env) = Build();
+            env.ViewFn = p => p.X <= 10f;
+            var wide = new FakeItem
+            {
+                Position = new Vector3(12f, 0f, 0f), // centre out of frame...
+                Name = "long fence",
+            };
+            model.List.Add(wide);
+            // ...but its footprint reaches back inside (nearest point to the origin is X=8).
+            wide.HalfExtent = 4f;
+
+            scanner.StepItem(1);
+            Assert.StartsWith("long fence; ", speech.Spoken[^1]);
+        }
+
+        [Fact]
+        public void FoggedThing_IsNeverOffered()
+        {
+            var (scanner, model, speech, _, env) = Build();
+            env.FogFn = p => p.X > 3f; // an unrevealed pocket east
+            model.List.Add(At(2f, 0f, "revealed"));
+            model.List.Add(At(5f, 0f, "fogged"));
+
+            scanner.StepItem(1);
+            Assert.StartsWith("revealed; ", speech.Spoken[^1]);
+            scanner.StepItem(1); // wraps, never landing on the fogged thing
+            Assert.StartsWith("revealed; ", speech.Spoken[^1]);
+        }
+
+        [Fact]
         public void EmptyWorld_SpeaksNone()
         {
-            var (scanner, model, speech, _) = Build();
+            var (scanner, model, speech, _, _) = Build();
             scanner.StepItem(1);
             Assert.Equal("everything, none", speech.Spoken[^1]);
             Assert.Null(scanner.Selected);
@@ -151,7 +217,7 @@ namespace DiscoAccess.Tests
         [Fact]
         public void FirstCategoryPress_AnnouncesCurrentWithoutStepping()
         {
-            var (scanner, model, speech, _) = Build();
+            var (scanner, model, speech, _, _) = Build();
             model.List.Add(At(1f, 0f, "near"));
 
             scanner.StepCategory(1);
@@ -161,7 +227,7 @@ namespace DiscoAccess.Tests
         [Fact]
         public void CategoryStep_SkipsEmptyCategories()
         {
-            var (scanner, model, speech, _) = Build();
+            var (scanner, model, speech, _, _) = Build();
             model.List.Add(At(1f, 0f, "crate", WorldTaxonomy.Container));
             model.List.Add(At(2f, 0f, "stairs", WorldTaxonomy.Exit));
 
@@ -177,7 +243,7 @@ namespace DiscoAccess.Tests
         [Fact]
         public void DoorsListUnderExits()
         {
-            var (scanner, model, speech, _) = Build();
+            var (scanner, model, speech, _, _) = Build();
             model.List.Add(At(1f, 0f, "kitchen door", WorldTaxonomy.Door));
             model.List.Add(At(3f, 0f, "courtyard door", WorldTaxonomy.Exit));
 
@@ -189,7 +255,7 @@ namespace DiscoAccess.Tests
         [Fact]
         public void ItemStep_StaysInsideTheCategory()
         {
-            var (scanner, model, speech, _) = Build();
+            var (scanner, model, speech, _, _) = Build();
             model.List.Add(At(1f, 0f, "cuno", WorldTaxonomy.Npc));
             model.List.Add(At(2f, 0f, "crate", WorldTaxonomy.Container));
             model.List.Add(At(5f, 0f, "kim", WorldTaxonomy.Npc));
@@ -206,7 +272,7 @@ namespace DiscoAccess.Tests
         [Fact]
         public void Landing_PingsInStereo()
         {
-            var (scanner, model, _, audio) = Build();
+            var (scanner, model, _, audio, _) = Build();
             model.List.Add(At(3f, 0f, "east thing")); // due east of the reference
 
             scanner.StepItem(1);
@@ -221,7 +287,7 @@ namespace DiscoAccess.Tests
         [Fact]
         public void EmptyLanding_DoesNotPing()
         {
-            var (scanner, model, _, audio) = Build();
+            var (scanner, model, _, audio, _) = Build();
             scanner.StepItem(1);
             Assert.Empty(audio.Cues);
         }
@@ -229,7 +295,7 @@ namespace DiscoAccess.Tests
         [Fact]
         public void Reset_DropsSelection_KeepsCategory()
         {
-            var (scanner, model, speech, _) = Build();
+            var (scanner, model, speech, _, _) = Build();
             model.List.Add(At(1f, 0f, "cuno", WorldTaxonomy.Npc));
             model.List.Add(At(2f, 0f, "crate", WorldTaxonomy.Container));
 
@@ -244,7 +310,7 @@ namespace DiscoAccess.Tests
         [Fact]
         public void SpokenLine_CarriesBearingAndDistance()
         {
-            var (scanner, model, speech, _) = Build();
+            var (scanner, model, speech, _, _) = Build();
             model.List.Add(At(0f, 4f, "crate")); // 4 m due north
 
             scanner.StepItem(1);

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using DiscoAccess.Core.Audio;
 using DiscoAccess.Core.Speech;
 
 namespace DiscoAccess.Core.World.Overlays
@@ -7,18 +8,27 @@ namespace DiscoAccess.Core.World.Overlays
     /// <summary>
     /// The one sensory layer over the scene: a <see cref="Cursor"/> plus a set of <see cref="OverlaySystem"/>s
     /// (one per type). It owns no behavior beyond moving the cursor, fanning lifecycle/tick out to its
-    /// systems, and running the announce pipeline. There is no overlay-cycling here (unlike the WOTR
-    /// reference): Disco has a single implicit overlay whose systems are toggled from the mod settings menu,
-    /// so the framework is just this container, owned and gated by the Module's world reader.
+    /// systems, keeping the cursor inside the visible frame, and running the announce pipeline. The game's
+    /// camera stays slaved to the character (the mod never drives it), so the frame is a stable window
+    /// around the player's body and the cursor's whole world is rendered, revealed, and actable. There is
+    /// no overlay-cycling here (unlike the WOTR reference): Disco has a single implicit overlay whose
+    /// systems are toggled from the mod settings menu, so the framework is just this container, owned and
+    /// gated by the Module's world reader.
     /// </summary>
     public sealed class Overlay
     {
+        // The impassable bump's spatialization: panned toward the refused point from the cursor, at the
+        // cursor-cue level. The distance is under a step, so the gain is flat - no falloff.
+        private const float ImpassableVolume = 0.8f;
+        private const float ImpassablePanWidth = 3f;
+
         private readonly List<OverlaySystem> _systems = new List<OverlaySystem>(); // ordered (readout order)
         private readonly Dictionary<Type, OverlaySystem> _byType = new Dictionary<Type, OverlaySystem>();
         private readonly IWorldEnvironment _env;
         private readonly SpeechPipeline _speech;
+        private readonly SpatialSources _cues;
         private readonly MotionTracker _motion = new MotionTracker();
-        private readonly CameraFollow _camera;
+        private bool _wasBlocked; // last stroke frame ended pinned - the bump fires on the transition
 
         public Cursor Cursor { get; }
 
@@ -36,12 +46,12 @@ namespace DiscoAccess.Core.World.Overlays
         /// a directly-driven overlay (tests, dev hooks) plays.</summary>
         public bool InputActive { get; set; } = true;
 
-        public Overlay(IWorldEnvironment env, SpeechPipeline speech)
+        public Overlay(IWorldEnvironment env, SpeechPipeline speech, SpatialSources cues)
         {
             _env = env;
             _speech = speech;
+            _cues = cues;
             Cursor = new Cursor(env);
-            _camera = new CameraFollow(env);
         }
 
         /// <summary>Add a system (one per concrete type; a duplicate replaces the prior instance).</summary>
@@ -64,27 +74,43 @@ namespace DiscoAccess.Core.World.Overlays
         public void OnExit()
         {
             foreach (var s in _systems) s.OnExit(this);
-            _camera.Release();
             _motion.Reset();
+            _wasBlocked = false;
         }
 
         /// <summary>One frame: glide the cursor by the held direction (only while in control, so it can't
-        /// drift in a cutscene), refresh the moving signal from the fresh position, then tick every system
-        /// so they read the up-to-date cursor. <paramref name="dirX"/>/<paramref name="dirZ"/> are the held
-        /// movement vector (east/north positive); <paramref name="speed"/> is metres/second.</summary>
+        /// drift in a cutscene), keep it inside the visible frame, refresh the moving signal from the fresh
+        /// position, then tick every system so they read the up-to-date cursor. A stroke pinned at the frame
+        /// edge or against fogged ground bumps once on the transition (re-armed by releasing the keys), so
+        /// holding into the boundary doesn't drone. <paramref name="dirX"/>/<paramref name="dirZ"/> are the
+        /// held movement vector (east/north positive); <paramref name="speed"/> is metres/second.</summary>
         public void Tick(float dt, float dirX, float dirZ, float speed)
         {
             // Holding the movement keys counts as moving even when the cursor can't advance (blocked against
             // a wall), so the WhenMoving systems don't stutter; an audio system that should fall silent
             // without control gates on HasControl itself rather than on this signal.
             bool intent = dirX != 0f || dirZ != 0f;
-            if (_env.HasControl) Cursor.Glide(dirX, dirZ, dt, speed);
+            bool driven = InputActive && _env.HasControl;
+            GlideOutcome outcome = default;
+            if (_env.HasControl) outcome = Cursor.Glide(dirX, dirZ, dt, speed);
+
+            // The frame invariant: a walking character slides the window, so a pinned cursor rides its edge
+            // rather than falling out of the senses. Silent - the glide-stop and recenter readouts answer
+            // "where am I". Only while driven, so a dialogue or menu camera never drags the cursor around.
+            if (driven && !_env.InView(Cursor.Position))
+                Cursor.Position = _env.ClampToView(Cursor.Position);
+
             _motion.Update(Cursor.Position, dt, intent);
             for (int i = 0; i < _systems.Count; i++) _systems[i].Tick(dt, this);
-            // Keep the camera on the cursor so orbs stream in around it (and an orb under the cursor renders,
-            // the gate its clickable needs). Released when a menu floats over the world or control is lost, so
-            // the dialogue/cutscene camera is unopposed.
-            _camera.Tick(Cursor.Position, InputActive && _env.HasControl);
+
+            bool blocked = intent && outcome.Block != GlideBlock.None;
+            if (driven && blocked && !_wasBlocked)
+                _cues.Play(AudioCue.CursorImpassable,
+                           () => Cursor.Position,
+                           _ => outcome.BlockedToward,
+                           _ => ImpassableVolume,
+                           ImpassablePanWidth);
+            _wasBlocked = blocked;
         }
 
         /// <summary>Gather every system's announcements for the request, keep those matching the requested

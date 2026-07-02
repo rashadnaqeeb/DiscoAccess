@@ -29,17 +29,22 @@ namespace DiscoAccess.Core.World.Overlays
         /// volume; the Module casts the game's navmesh.</summary>
         float WallDistance(Vector3 from, Vector3 direction, float range);
 
-        /// <summary>Hold the game camera on <paramref name="point"/> so the orb streamer (which culls against
-        /// the camera frustum) wakes the orbs around it, and so an orb the cursor sits on is rendered - the
-        /// gate its clickable needs before it can be interacted with. The Module takes a camera lock (which
-        /// freezes the game's own camera, so it stops pulling the view back to the character between our
-        /// focuses) and snaps the focus rather than tweening, so the frustum updates promptly. A no-op before
-        /// the camera exists (early boot), which is a not-ready state rather than a failure.</summary>
-        void FocusCamera(Vector3 point);
+        /// <summary>Whether <paramref name="point"/> sits inside the camera's visible frame (with a small
+        /// inset margin, so edge-of-frame content that streams unreliably doesn't count). The frame is the
+        /// cursor's roam bound: the game's camera stays slaved to the character, orbs stream against its
+        /// frustum, so in-frame is exactly "rendered, revealed, and actable". Reads true before the camera
+        /// exists (early boot) - a not-ready state, not a failure.</summary>
+        bool InView(Vector3 point);
 
-        /// <summary>Release the camera lock taken by <see cref="FocusCamera"/>, handing the camera back to the
-        /// game - which recenters on the character. Called when control is lost, a menu floats over the world,
-        /// or the world is left, so the game's own dialogue and cutscene cameras are unopposed. Idempotent.</summary>
-        void ReleaseCamera();
+        /// <summary>The nearest in-frame walkable point to <paramref name="point"/>, for pulling a cursor
+        /// back inside the view after the frame moved out from under it (the character walked). Returns the
+        /// point unchanged before the camera exists.</summary>
+        Vector3 ClampToView(Vector3 point);
+
+        /// <summary>Whether <paramref name="point"/> lies under an unrevealed fog-of-war zone - ground a
+        /// sighted player currently sees only as the dark mosaic. The Module raycasts up into the game's
+        /// zone volumes, the game's own point-to-zone idiom; zones only exist in physics while their area
+        /// is loaded, which is the only time such ground can be in frame.</summary>
+        bool IsFogged(Vector3 point);
     }
 }

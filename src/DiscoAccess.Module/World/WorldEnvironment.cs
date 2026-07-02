@@ -9,9 +9,10 @@ namespace DiscoAccess.Module.World
 {
     /// <summary>
     /// The <see cref="IWorldEnvironment"/> over the live game: the overlay framework reads the player's
-    /// position, whether the player has control, and the navmesh clamp through here. This is the thin
-    /// engine-touching adapter the Core world layer is kept free of; it converts Unity's <c>Vector3</c> to
-    /// <see cref="System.Numerics.Vector3"/> at the boundary so no Unity type crosses into Core.
+    /// position, whether the player has control, the navmesh clamp, the visible-frame bound, and the
+    /// fog-of-war state through here. This is the thin engine-touching adapter the Core world layer is kept
+    /// free of; it converts Unity's <c>Vector3</c> to <see cref="System.Numerics.Vector3"/> at the boundary
+    /// so no Unity type crosses into Core.
     /// </summary>
     internal sealed class WorldEnvironment : IWorldEnvironment
     {
@@ -119,36 +120,85 @@ namespace DiscoAccess.Module.World
             return Mathf.Sqrt(dx * dx + dz * dz);
         }
 
-        // A stable lock token. While it sits in the camera's lock set the game's own camera logic - pan, zoom,
-        // and the recenter-on-character that otherwise pulls the view back between our focuses - is frozen, so
-        // our SetFocus is the only thing moving the camera. Confirmed live: SetFocus still drives the camera
-        // while locked. One per environment instance; released on leaving the world (and on module teardown,
-        // via the overlay's exit), so it never leaks a frozen camera.
-        private readonly Il2CppSystem.Object _camLock = new Il2CppSystem.Object();
+        /// <summary>Whether the point sits inside the camera's visible frame, inset by <see cref="ViewMargin"/>
+        /// so edge-of-frame content that streams unreliably doesn't count. The game's camera is slaved to the
+        /// character every frame (nothing in the game ever unsets it and the player has no pan input), so this
+        /// frame is a stable window around the body. No camera yet (early boot) reads true - not ready, not
+        /// a failure.</summary>
+        public bool InView(Snv point)
+        {
+            Camera cam = GameCamera;
+            if (cam == null) return true;
+            Vector3 vp = cam.WorldToViewportPoint(WorldConvert.ToUnity(point));
+            return vp.z > 0f
+                   && vp.x >= ViewMargin && vp.x <= 1f - ViewMargin
+                   && vp.y >= ViewMargin && vp.y <= 1f - ViewMargin;
+        }
 
-        /// <summary>Hold the camera on a world point so the orb streamer wakes the orbs around it. Takes the
-        /// camera lock once (re-added if the controller was swapped on an area change, checked live) so the
-        /// game stops reclaiming the view, then snaps the focus with instant=true so the frustum updates this
-        /// frame rather than tweening; the empty zoom keeps the current zoom. A no-op before the camera exists
-        /// (early boot) - a not-ready state, not a failure, so it is silent like the player-position cold read.</summary>
-        public void FocusCamera(Snv point)
+        /// <summary>The nearest in-frame walkable point: clamp the point's viewport coordinates into the
+        /// margin-inset frame at its own camera depth, then snap the result onto the navmesh so the cursor
+        /// stays on the floor. Backs the frame-drag that keeps a pinned cursor riding the window's edge as
+        /// the character walks.</summary>
+        public Snv ClampToView(Snv point)
+        {
+            Camera cam = GameCamera;
+            if (cam == null) return point;
+            Vector3 vp = cam.WorldToViewportPoint(WorldConvert.ToUnity(point));
+            vp.x = Mathf.Clamp(vp.x, ViewMargin, 1f - ViewMargin);
+            vp.y = Mathf.Clamp(vp.y, ViewMargin, 1f - ViewMargin);
+            Vector3 world = cam.ViewportToWorldPoint(vp);
+            if (NavMesh.SamplePosition(world, out NavMeshHit snapped, ClampSnapRadius, AllAreas))
+                return WorldConvert.ToSnv(snapped.position);
+            return WorldConvert.ToSnv(world);
+        }
+
+        /// <summary>Whether the point lies under an unrevealed fog-of-war zone: raycast straight up into the
+        /// game's zone volumes (the game's own point-to-zone idiom - each interactable does exactly this to
+        /// register with its zone) and read the hit zone's status. Anything not ACTIVE (never seen, or seen
+        /// once and now only remembered) is fogged: the senses cover what is visible right now, not what is
+        /// half-remembered. Zone colliders only exist in physics while their area is loaded, which is the
+        /// only time such ground can be in frame; unzoned ground is never fogged.</summary>
+        public bool IsFogged(Snv point)
+        {
+            if (!Physics.Raycast(WorldConvert.ToUnity(point), Vector3.up, out RaycastHit hit,
+                                 FogProbeRange, FogZoneLayerMask))
+                return false;
+            var zone = hit.collider.GetComponent<Sunshine.Unseen.Zone>();
+            return zone != null && zone._status != Sunshine.Unseen.Zone.Status.ACTIVE;
+        }
+
+        /// <summary>Assert the camera's zoom at the area's own maximum (the widest a sighted player can see
+        /// here), so the cursor's roam window is as large and as consistent as the game allows and a stray
+        /// scroll-wheel tick can't shrink the senses. The limits are the game's per-area values (interior,
+        /// exterior, thought-modified), read live and never stored; the setter routes through the game's own
+        /// zoom-change path, so the curve and clamps apply. Called only while the world owns the keyboard, so
+        /// a dialogue or cutscene zoom sequence is never fought.</summary>
+        public void PinZoom()
         {
             CameraController cam = CameraController.Current;
             if (cam == null) return;
-            if (!cam.CheckLock(_camLock)) cam.AddLock(_camLock);
-            cam.SetFocus(WorldConvert.ToUnity(point), new Il2CppSystem.Nullable<float>(), true);
+            float max = cam.GetZoomLimiters().y;
+            if (Mathf.Abs(cam.ZoomFactor - max) > 0.001f) cam.ZoomFactor = max;
         }
 
-        /// <summary>Release the camera lock, handing the camera back to the game (which recenters on the
-        /// character). Idempotent: only removes the lock when this controller actually holds it.</summary>
-        public void ReleaseCamera()
+        private static Camera GameCamera
         {
-            CameraController cam = CameraController.Current;
-            if (cam != null && cam.CheckLock(_camLock)) cam.RemoveLock(_camLock);
+            get { CameraController cam = CameraController.Current; return cam != null ? cam._camera : null; }
         }
 
         // NavMesh.AllAreas (-1, every area in the mask); the const isn't surfaced on the interop proxy.
         private const int AllAreas = -1;
+
+        // The visible-frame inset: content exactly on the frame border streams unreliably, so the cursor's
+        // world ends a little inside it.
+        private const float ViewMargin = 0.05f;
+        // Navmesh snap radius for the frame-drag clamp - generous, since a viewport-clamped point lands at
+        // the old camera depth and can float a little off the floor.
+        private const float ClampSnapRadius = 2.5f;
+        // The fog-zone volumes' physics layer (the game's interactables raycast this same mask to find their
+        // zone) and a cast long enough to reach a volume from any floor under it.
+        private const int FogZoneLayerMask = 0x2000;
+        private const float FogProbeRange = 1000f;
 
         // Cursor debris-skip tuning (see TrySkipBoundary). Chosen by profiling Martinaise's navmesh: at a ~1 m
         // gap the boundaries are still thin seams and genuinely small debris (all measuring a tight sub-1.8

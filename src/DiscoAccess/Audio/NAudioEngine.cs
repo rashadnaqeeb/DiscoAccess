@@ -114,7 +114,15 @@ namespace DiscoAccess.Audio
             return voice;
         }
 
-        private static string CueFile(AudioCue cue) => cue == AudioCue.CursorEnter ? "enter.wav" : "exit.wav";
+        private static string CueFile(AudioCue cue)
+        {
+            switch (cue)
+            {
+                case AudioCue.CursorEnter: return "enter.wav";
+                case AudioCue.CursorExit: return "exit.wav";
+                default: return "cursor_impassable.wav";
+            }
+        }
 
         // Decode a WAV to a mono float[] at the mixer rate, caching only successes. A load failure logs (once
         // per path) and yields an empty buffer (that voice goes silent) rather than crashing the audio thread.

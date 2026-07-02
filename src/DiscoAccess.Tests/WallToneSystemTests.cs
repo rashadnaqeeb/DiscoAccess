@@ -28,8 +28,9 @@ namespace DiscoAccess.Tests
                 if (dir.X > 0.5f) return East;
                 return West;
             }
-            public void FocusCamera(Vector3 point) { }
-            public void ReleaseCamera() { }
+            public bool InView(Vector3 point) => true;
+            public Vector3 ClampToView(Vector3 point) => point;
+            public bool IsFogged(Vector3 point) => false;
         }
 
         private sealed class FakeBackend : ISpeechBackend
@@ -39,7 +40,9 @@ namespace DiscoAccess.Tests
             public void Stop() { }
         }
 
-        private static Overlay NewOverlay(FakeEnv env) => new Overlay(env, new SpeechPipeline(new FakeBackend()));
+        private static Overlay NewOverlay(FakeEnv env)
+            => new Overlay(env, new SpeechPipeline(new FakeBackend()),
+                           new SpatialSources(new FakeAudioEngine(), _ => { }));
 
         [Fact]
         public void Continuous_MapsEachCardinalToTheProximityCurve()
