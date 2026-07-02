@@ -33,20 +33,18 @@ namespace DiscoAccess.Audio
         // Paths whose decode has already been warned about, so a genuinely missing asset logs once instead of
         // once per glide-blip - the failure itself is not cached (see LoadMono).
         private readonly HashSet<string> _warnedClips = new HashSet<string>();
-        private string _wallDir;
-        private string _cueDir;
+        private string _assetRoot;
 
         public NAudioEngine(ManualLogSource log) { _log = log; }
 
-        // The set-1 wall-tone WAVs deploy beside this assembly under assets/audio/walltones/1.
-        private string WallDir => _wallDir ??= Path.Combine(
-            Path.GetDirectoryName(typeof(NAudioEngine).Assembly.Location) ?? ".",
-            "assets", "audio", "walltones", "1");
+        // The WAV assets deploy beside this assembly under assets/audio: the set-1 wall tones, the cursor
+        // enter/exit/impassable cues, and the per-category thing cues (sonar sweep + scanner review ping).
+        private string AssetRoot => _assetRoot ??= Path.Combine(
+            Path.GetDirectoryName(typeof(NAudioEngine).Assembly.Location) ?? ".", "assets", "audio");
 
-        // The cursor enter/exit cue WAVs deploy beside this assembly under assets/audio/cursor.
-        private string CueDir => _cueDir ??= Path.Combine(
-            Path.GetDirectoryName(typeof(NAudioEngine).Assembly.Location) ?? ".",
-            "assets", "audio", "cursor");
+        private string WallDir => Path.Combine(AssetRoot, "walltones", "1");
+        private string CueDir => Path.Combine(AssetRoot, "cursor");
+        private string ThingDir => Path.Combine(AssetRoot, "interactables");
 
         public bool Available => !_failed;
 
@@ -106,7 +104,7 @@ namespace DiscoAccess.Audio
         public ISpatialVoice PlayCue(AudioCue cue, float volume, SpatialCue placement)
         {
             if (!EnsureStarted()) return null;
-            float[] clip = LoadMono(Path.Combine(CueDir, CueFile(cue)));
+            float[] clip = LoadMono(CuePath(cue));
             if (clip.Length == 0) return null; // missing/unreadable asset already logged by LoadMono
             var voice = new PositionalEmitter(Rate, clip);
             voice.SetPlacement(placement, volume);
@@ -114,13 +112,18 @@ namespace DiscoAccess.Audio
             return voice;
         }
 
-        private static string CueFile(AudioCue cue)
+        private string CuePath(AudioCue cue)
         {
             switch (cue)
             {
-                case AudioCue.CursorEnter: return "enter.wav";
-                case AudioCue.CursorExit: return "exit.wav";
-                default: return "cursor_impassable.wav";
+                case AudioCue.CursorEnter: return Path.Combine(CueDir, "enter.wav");
+                case AudioCue.CursorExit: return Path.Combine(CueDir, "exit.wav");
+                case AudioCue.CursorImpassable: return Path.Combine(CueDir, "cursor_impassable.wav");
+                case AudioCue.ThingNpc: return Path.Combine(ThingDir, "npc.wav");
+                case AudioCue.ThingContainer: return Path.Combine(ThingDir, "container.wav");
+                case AudioCue.ThingOrb: return Path.Combine(ThingDir, "orb.wav");
+                case AudioCue.ThingDoor: return Path.Combine(ThingDir, "door.wav");
+                default: return Path.Combine(ThingDir, "interactable.wav");
             }
         }
 

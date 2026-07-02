@@ -28,14 +28,6 @@ namespace DiscoAccess.Core.World
     /// </summary>
     public sealed class Scanner
     {
-        // The review ping's spatialization, the WOTR review-cue values in metres: pan crosses over at
-        // PanWidth, volume halves every RefDistance and never falls below the floor, scaled by CueVolume so
-        // the ping sits at the cursor blip's level.
-        private const float PanWidth = 3f;
-        private const float RefDistance = 3f;
-        private const float VolumeFloor = 0.08f;
-        private const float CueVolume = 0.7f;
-
         private readonly IWorldModel _model;
         private readonly Overlays.IWorldEnvironment _env;
         private readonly Func<Vector3> _scanFrom;
@@ -131,19 +123,10 @@ namespace DiscoAccess.Core.World
             _speech.Speak(prefix + name + "; " + spatial, interrupt: true);
         }
 
-        // The review ping: a tracked one-shot placed at the thing's nearest part relative to the scan
-        // reference, so the ear hears where the readout says it is - pan + ear delay east/west, muffled
-        // when it sits behind (south of) the reference - and re-placed while it sounds, so a glide during
-        // the ping keeps it truthful. Same cue as the cursor's enter blip until per-category sounds are
-        // authored (planned with the sonar).
-        private void Ping(IWorldItem item)
-        {
-            _cues.Play(AudioCue.CursorEnter,
-                       _scanFrom,
-                       from => item.Bounds.NearestPoint(from),
-                       dist => CueVolume * Spatial.DistanceVolume(dist, RefDistance, VolumeFloor),
-                       PanWidth);
-        }
+        // The review ping: the thing's own category sound placed at its nearest part relative to the scan
+        // reference, so the ear hears where the readout says it is. The one shared WorldCues.Ping the
+        // sonar sweep also plays, so review and sweep speak one sound language with one falloff.
+        private void Ping(IWorldItem item) => WorldCues.Ping(_cues, item, _scanFrom);
 
         // The current category's live list: the accessible-and-visible things inside the visible frame
         // (what a sighted player could see and act on right now), category-filtered through the
@@ -164,37 +147,8 @@ namespace DiscoAccess.Core.World
         }
 
         // The one offering gate Build and CountIn share, so the category counts can never disagree with the
-        // list. In-frame is tested at the thing's part nearest the scan reference, so a wide thing that pokes
-        // into the frame (a doorway half in view) still counts. Fog of war is IsVisible's contract - the
-        // item judges a fogged body at its approach stand-point, so a closed room's own door is offered from
-        // the corridor side - and the scanner takes no second fog opinion: a body-position fog test here
-        // would re-hide exactly those boundary things.
-        //
-        // The height-reachability pair is the cursor's own gate (ObjectCueSystem.Under): a thing past the
-        // same-level pivot slack is offered only when it belongs to ground walk-connected from here or is a
-        // person the game converses with across levels (ReachableFrom) - so the crate up on the harbour gate
-        // (connected via its stairs) and the balcony smoker (spoken to from the street) stay offered, while
-        // the ground-floor door and the tracks on the plaza below the balcony, reachable only by going
-        // elsewhere, never land in the list to fail a walk-interact later. The path test runs only for the
-        // few off-slack candidates in frame.
-        //
-        // A same-level CROSSING (door, exit) must additionally have a complete walk to its stand-point: a
-        // closed door carves the walkable mesh, so the corridor doors beyond the player's own shut door are
-        // severed and a walk-interact at them would stall against it - they return the moment it opens (the
-        // list rebuilds per press). Only crossings, because doors are the things that systematically sit
-        // behind other doors; a blanket walk requirement is the known over-rejection trap (the bartender
-        // behind his counter island, the container on a mesh-carving table) and was dropped for cost - a
-        // few doors per press keep the stand-point and path calls negligible at any sonar cadence.
-        private bool Offered(IWorldItem it, Vector3 from)
-        {
-            if (!it.IsAccessible || !it.IsVisible) return false;
-            Vector3 nearest = it.Bounds.NearestPoint(from);
-            if (!_env.InView(nearest)) return false;
-            if (Math.Abs(nearest.Y - from.Y) > Overlays.Systems.ObjectCueSystem.SameLevelSlack)
-                return it.ReachableFrom(from);
-            if (it.Category != WorldTaxonomy.Door && it.Category != WorldTaxonomy.Exit) return true;
-            return _env.WalkExists(from, it.InteractionPoint(from));
-        }
+        // list - and the same gate the sonar sweeps (ScanScope), so what pings is always what can be browsed.
+        private bool Offered(IWorldItem it, Vector3 from) => ScanScope.Offered(it, from, _env);
 
         // The next category index with things in it, walking dir-wise with wrap-around; Everything (index 0)
         // always qualifies, so the walk terminates. Counted against the same live filter the list uses.

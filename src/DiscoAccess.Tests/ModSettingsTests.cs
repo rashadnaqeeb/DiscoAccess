@@ -108,5 +108,58 @@ namespace DiscoAccess.Tests
             Assert.False(vol.Decrease()); // already at the floor
             Assert.Equal(0, vol.Value);
         }
+
+        [Fact]
+        public void Sonar_Defaults_WhenMovingAllCategoriesWotrRest()
+        {
+            var settings = new ModSettings(new FakeStore());
+            Assert.False(settings.SonarContinuous.Value);
+            Assert.True(settings.SonarNpcs.Value);
+            Assert.True(settings.SonarInteractables.Value);
+            Assert.True(settings.SonarContainers.Value);
+            Assert.True(settings.SonarOrbs.Value);
+            Assert.True(settings.SonarExits.Value);
+            Assert.Equal(400, settings.SonarRest.Value); // WOTR's rest-between-sweeps default
+            Assert.Equal(RangeUnit.Milliseconds, settings.SonarRest.Unit);
+            foreach (var s in new ModSetting[]
+                     {
+                         settings.SonarContinuous, settings.SonarRest, settings.SonarNpcs,
+                         settings.SonarInteractables, settings.SonarContainers, settings.SonarOrbs,
+                         settings.SonarExits,
+                     })
+                Assert.Contains(s, settings.All);
+        }
+
+        [Fact]
+        public void SonarCategoryEnabled_MapsEveryScanCategoryToItsToggle()
+        {
+            var settings = new ModSettings(new FakeStore());
+            settings.SonarContainers.Toggle();
+
+            Assert.False(settings.SonarCategoryEnabled(DiscoAccess.Core.World.WorldTaxonomy.Container));
+            foreach (string cat in DiscoAccess.Core.World.WorldTaxonomy.Scan)
+                if (cat != DiscoAccess.Core.World.WorldTaxonomy.Container)
+                    Assert.True(settings.SonarCategoryEnabled(cat));
+        }
+
+        [Fact]
+        public void SonarRest_ClampsToItsOwnSpan_NotThePercentScale()
+        {
+            var store = new FakeStore();
+            store.SavedInts["sonar_rest"] = 9999; // a stale/hand-edited store value
+            var rest = new ModSettings(store).SonarRest;
+
+            Assert.Equal(1500, rest.Value); // clamped to the setting's own maximum
+            Assert.False(rest.Increase());
+            Assert.True(rest.Decrease());
+            Assert.Equal(1450, rest.Value); // steps by 50
+        }
+
+        [Fact]
+        public void Fraction_ThrowsForANonPercentRange()
+        {
+            var settings = new ModSettings(new FakeStore());
+            Assert.Throws<System.InvalidOperationException>(() => _ = settings.SonarRest.Fraction);
+        }
     }
 }

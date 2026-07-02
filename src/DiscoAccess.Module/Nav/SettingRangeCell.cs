@@ -6,9 +6,10 @@ using DiscoAccess.Core.UI.Nav;
 namespace DiscoAccess.Module.Nav
 {
     /// <summary>
-    /// A navigable slider for one numeric (percent) mod setting. Reads the live value at announce time and
-    /// steps it on Left/Right (decrease/increase); the navigator re-announces the new percentage, or names
-    /// the bound ("minimum"/"maximum") when a step at the end moved nothing.
+    /// A navigable slider for one numeric mod setting. Reads the live value at announce time in the
+    /// setting's own unit (a percentage, a millisecond duration) and steps it on Left/Right
+    /// (decrease/increase); the navigator re-announces the new value, or names the bound
+    /// ("minimum"/"maximum") when a step at the end moved nothing.
     /// </summary>
     public sealed class SettingRangeCell : UIElement
     {
@@ -18,7 +19,9 @@ namespace DiscoAccess.Module.Nav
 
         public override string Label => _setting.Label;
         public override string Role => Strings.ControlSlider;
-        public override string Value => Strings.Percent(_setting.Value);
+        public override string Value => _setting.Unit == RangeUnit.Milliseconds
+            ? Strings.Milliseconds(_setting.Value)
+            : Strings.Percent(_setting.Value);
 
         public override IEnumerable<ElementAction> GetActions()
         {

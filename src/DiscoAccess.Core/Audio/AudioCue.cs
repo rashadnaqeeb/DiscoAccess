@@ -2,9 +2,11 @@ namespace DiscoAccess.Core.Audio
 {
     /// <summary>
     /// A named one-shot cue the sensing layer can fire (the engine owns the sound file behind each name, so
-    /// Core stays free of paths). Today: the cursor's enter/exit blips as it glides across a thing's
-    /// footprint - a rising click on entering, a falling click on leaving to bare ground - and the
-    /// impassable bump when a glide is refused at the edge of the senses.
+    /// Core stays free of paths). The cursor's enter/exit blips as it glides across a thing's footprint -
+    /// a rising click on entering, a falling click on leaving to bare ground - the impassable bump when a
+    /// glide is refused at the edge of the senses, and the per-category thing cues the sonar sweep and the
+    /// scanner's review ping sound (mapped from a thing's <see cref="World.WorldTaxonomy"/> category by
+    /// <see cref="World.WorldCues"/>).
     /// </summary>
     public enum AudioCue
     {
@@ -18,5 +20,20 @@ namespace DiscoAccess.Core.Audio
         /// fog-of-war ground. Distinct from the wall tones: a wall means "no path", this means "walk here
         /// with your body and there will be more".</summary>
         CursorImpassable,
+
+        /// <summary>A person.</summary>
+        ThingNpc,
+
+        /// <summary>A plain interactable (and the fallback for an unmapped category).</summary>
+        ThingInteractable,
+
+        /// <summary>A container.</summary>
+        ThingContainer,
+
+        /// <summary>A skill/thought orb.</summary>
+        ThingOrb,
+
+        /// <summary>A way through - an in-place door or a destination exit.</summary>
+        ThingDoor,
     }
 }

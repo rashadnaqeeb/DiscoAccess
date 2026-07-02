@@ -352,18 +352,28 @@ namespace DiscoAccess.Tests
         }
 
         [Fact]
-        public void Landing_PingsInStereo()
+        public void Landing_PingsInStereo_WithTheCategorySound()
         {
             var (scanner, model, _, audio, _) = Build();
             model.List.Add(At(3f, 0f, "east thing")); // due east of the reference
 
             scanner.StepItem(1);
             var (cue, volume, placement) = Assert.Single(audio.Played);
-            Assert.Equal(AudioCue.CursorEnter, cue);
+            Assert.Equal(AudioCue.ThingInteractable, cue);
             Assert.True(placement.Pan > 0.5f);        // east pans right
             Assert.True(placement.ItdSeconds > 0f);   // east leads the right ear
             Assert.Equal(0f, placement.WetMix, 3);    // not behind, so dry
             Assert.True(volume > 0f);
+        }
+
+        [Fact]
+        public void Landing_PingsTheDoorSound_ForADoor()
+        {
+            var (scanner, model, _, audio, _) = Build();
+            model.List.Add(At(2f, 0f, "kitchen door", WorldTaxonomy.Door));
+
+            scanner.StepCategory(1); // Everything; lands on the door
+            Assert.Equal(AudioCue.ThingDoor, Assert.Single(audio.Cues));
         }
 
         [Fact]

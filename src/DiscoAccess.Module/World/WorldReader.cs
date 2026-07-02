@@ -46,6 +46,7 @@ namespace DiscoAccess.Module.World
         private readonly ObjectCueSystem _objects;
         private readonly SpatialSystem _spatial;
         private readonly WallToneSystem _wallTones;
+        private readonly SonarSystem _sonar;
         private readonly WorldModel _model = new WorldModel();
         private readonly WalkInteract _walk;
         private readonly DistrictReader _districts;
@@ -89,6 +90,14 @@ namespace DiscoAccess.Module.World
             _wallTones.BindMode(() => host.Settings.WallTonesContinuous.Value ? PlayMode.Continuous : PlayMode.WhenMoving);
             _wallTones.BindVolume(() => host.Settings.WallToneVolume.Fraction);
             _overlay.With(_wallTones);
+            // The sonar sweep: pings the scanner's offered set around the cursor, one thing at a time,
+            // gated by the per-category toggles. Continuous when the player chose it, else only while the
+            // cursor is gliding - the wall-tone rule.
+            _sonar = new SonarSystem(_model, _env, _sources, host.LogWarning);
+            _sonar.BindMode(() => host.Settings.SonarContinuous.Value ? PlayMode.Continuous : PlayMode.WhenMoving);
+            _sonar.BindCategories(host.Settings.SonarCategoryEnabled);
+            _sonar.BindRest(() => host.Settings.SonarRest.Value / 1000f);
+            _overlay.With(_sonar);
             _walk = new WalkInteract(host);
             _districts = new DistrictReader(host);
             // The review cursor: browses the same live registry the cursor senses, scoped by the same env
@@ -325,6 +334,9 @@ namespace DiscoAccess.Module.World
             _devTones.Update(new[] { n, s, e, w });
         }
         public void DevWallStop() { _devTones?.Dispose(); _devTones = null; }
+
+        /// <summary>Live sonar sweep state (mode, snapshot size, next index, timer).</summary>
+        public string DevSonar() => _sonar.DevState();
 
         // World-model validation: total items, per-category counts, and how many pass the IsAccessible gate
         // (the doc's ~400 entities collapsing to ~90 actionable things).

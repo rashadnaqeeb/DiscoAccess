@@ -33,6 +33,22 @@ namespace DiscoAccess.Core.Settings
         /// sound only while the cursor is gliding, lingering briefly after it stops.</summary>
         public ToggleSetting WallTonesContinuous { get; }
 
+        /// <summary>When on, the sonar sweeps continuously while in the world; when off (the default) it
+        /// sweeps only while the cursor is gliding, lingering briefly after it stops.</summary>
+        public ToggleSetting SonarContinuous { get; }
+
+        /// <summary>The rest between sonar sweeps, in milliseconds (within a sweep the pings pace
+        /// themselves by count). WOTR's default and span.</summary>
+        public RangeSetting SonarRest { get; }
+
+        // What the sonar sonifies, one toggle per browse category (all on by default); turning every one
+        // off silences the sonar. The scanner browses everything regardless.
+        public ToggleSetting SonarNpcs { get; }
+        public ToggleSetting SonarInteractables { get; }
+        public ToggleSetting SonarContainers { get; }
+        public ToggleSetting SonarOrbs { get; }
+        public ToggleSetting SonarExits { get; }
+
         /// <summary>When on, the character runs to a clicked destination instead of walking. Off (the default)
         /// leaves the pace to the game's own policy, which walks, matching a vanilla single click.</summary>
         public ToggleSetting RunToDestinations { get; }
@@ -57,12 +73,42 @@ namespace DiscoAccess.Core.Settings
                 "wall_tone_volume", SettingWallToneVolume, defaultValue: 5, step: 5, store));
             WallTonesContinuous = Add(new ToggleSetting(
                 "wall_tones_continuous", SettingWallTonesContinuous, defaultValue: false, store));
+            SonarContinuous = Add(new ToggleSetting(
+                "sonar_continuous", SettingSonarContinuous, defaultValue: false, store));
+            SonarRest = Add(new RangeSetting(
+                "sonar_rest", SettingSonarRest, defaultValue: 400, step: 50, min: 0, max: 1500,
+                RangeUnit.Milliseconds, store));
+            SonarNpcs = Add(new ToggleSetting(
+                "sonar_npc", SettingSonarNpcs, defaultValue: true, store));
+            SonarInteractables = Add(new ToggleSetting(
+                "sonar_interactable", SettingSonarInteractables, defaultValue: true, store));
+            SonarContainers = Add(new ToggleSetting(
+                "sonar_container", SettingSonarContainers, defaultValue: true, store));
+            SonarOrbs = Add(new ToggleSetting(
+                "sonar_orb", SettingSonarOrbs, defaultValue: true, store));
+            SonarExits = Add(new ToggleSetting(
+                "sonar_exit", SettingSonarExits, defaultValue: true, store));
             RunToDestinations = Add(new ToggleSetting(
                 "run_to_destinations", SettingRunToDestinations, defaultValue: false, store));
             AudioItd = Add(new ToggleSetting(
                 "audio_itd", SettingAudioItd, defaultValue: true, store));
             AudioFrontBackFilter = Add(new ToggleSetting(
                 "audio_front_back_filter", SettingAudioFrontBackFilter, defaultValue: true, store));
+        }
+
+        /// <summary>Whether the sonar should sound the given <see cref="World.WorldTaxonomy.Scan"/> browse
+        /// category key - the seam the sonar's category filter binds to.</summary>
+        public bool SonarCategoryEnabled(string scanCategory)
+        {
+            switch (scanCategory)
+            {
+                case World.WorldTaxonomy.Npc: return SonarNpcs.Value;
+                case World.WorldTaxonomy.Interactable: return SonarInteractables.Value;
+                case World.WorldTaxonomy.Container: return SonarContainers.Value;
+                case World.WorldTaxonomy.Orb: return SonarOrbs.Value;
+                case World.WorldTaxonomy.Exit: return SonarExits.Value;
+                default: return true; // an unmapped category is never silently dropped
+            }
         }
 
         private T Add<T>(T setting) where T : ModSetting

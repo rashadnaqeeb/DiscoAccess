@@ -61,6 +61,8 @@
       <_WallToneAsset Include="$(RepoRoot)assets\audio\walltones\1\*.wav" />
       <!-- The cursor enter/exit cue WAVs (rising = enter, falling = exit); resolved at assets/audio/cursor beside the plugin. -->
       <_CursorCueAsset Include="$(RepoRoot)assets\audio\cursor\*.wav" />
+      <!-- The per-category thing cue WAVs (sonar sweep + scanner review ping); resolved at assets/audio/interactables beside the plugin. -->
+      <_ThingCueAsset Include="$(RepoRoot)assets\audio\interactables\*.wav" />
     </ItemGroup>
     <MakeDir Directories="$(PluginDeployDir)" />
     <!-- Retries=0: when iterating with the game running, the host/Roslyn DLLs are locked; fail fast
@@ -75,6 +77,9 @@
           SkipUnchangedFiles="true" ContinueOnError="true" />
     <Copy SourceFiles="@(_CursorCueAsset)"
           DestinationFolder="$(PluginDeployDir)\assets\audio\cursor"
+          SkipUnchangedFiles="true" ContinueOnError="true" />
+    <Copy SourceFiles="@(_ThingCueAsset)"
+          DestinationFolder="$(PluginDeployDir)\assets\audio\interactables"
           SkipUnchangedFiles="true" ContinueOnError="true" />
     <Message Importance="high" Text="DiscoAccess deployed -> $(PluginDeployDir)" />
   </Target>

@@ -229,6 +229,15 @@ namespace DiscoAccess.Core.Strings
         public const string SettingReadAmbientDialogue = "Read ambient dialogue";
         public const string SettingWallToneVolume = "Wall tone volume";
         public const string SettingWallTonesContinuous = "Continuous wall tones";
+        public const string SettingSonarContinuous = "Continuous sonar";
+        public const string SettingSonarRest = "Time between sonar sweeps";
+        // The sonar's per-category toggles, built from the scanner's spoken browse-group words (WorldScan*)
+        // so the menu and the scanner call a category the same thing.
+        public const string SettingSonarNpcs = "Sonar " + WorldScanNpcs;
+        public const string SettingSonarInteractables = "Sonar " + WorldScanInteractables;
+        public const string SettingSonarContainers = "Sonar " + WorldScanContainers;
+        public const string SettingSonarOrbs = "Sonar " + WorldScanOrbs;
+        public const string SettingSonarExits = "Sonar " + WorldScanExits;
         public const string SettingRunToDestinations = "Run to destinations";
         public const string SettingAudioItd = "Ear delay stereo cue";
         public const string SettingAudioFrontBackFilter = "Muffle cues from behind";
@@ -314,6 +323,9 @@ namespace DiscoAccess.Core.Strings
         /// <summary>A continuous slider's position as a percentage of its travel.</summary>
         public static string Percent(int value) => value + " percent";
 
+        /// <summary>A duration slider's value in milliseconds.</summary>
+        public static string Milliseconds(int value) => value + " milliseconds";
+
         /// <summary>A stepped slider's position when no authored words map to it.</summary>
         public static string Step(int index, int count) => "step " + index + " of " + count;
 
@@ -343,6 +355,7 @@ namespace DiscoAccess.Core.Strings
         public const string WorldSystemSpatial = "cursor position";
         public const string WorldSystemWallTones = "wall tones";
         public const string WorldSystemObjectCue = "cursor objects";
+        public const string WorldSystemSonar = "sonar";
 
         // The scanner's spoken category names (the review cursor's browse groups) and its list readouts.
         // Authored: the taxonomy is the mod's own grouping, so the game has no label for it. Plural, since a
