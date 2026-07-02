@@ -88,6 +88,21 @@ namespace DiscoAccess.Module
             };
         }
 
+        // An item read as loot (the world's container panel): the library prototype looked up by internal
+        // name, not an owned instance, so the ownership markers are left out - the prototype's "fresh" flag
+        // and use count describe a thing the player does not hold yet and would read as noise. Name, pawn
+        // value, effects, and description still tell the player what they are about to take.
+        public static InventoryItemState ReadLoot(InventoryItem item)
+        {
+            return new InventoryItemState
+            {
+                Name = item.GetDisplayName(),
+                Value = item.itemValue,
+                Effects = Effects(item),
+                Description = string.IsNullOrEmpty(item.description) ? null : TextFilter.Clean(item.description),
+            };
+        }
+
         // What the item does, read straight off its equip effects so it is correct for the item being
         // announced (the shared tooltip lags a frame behind focus). Each effect's own full name already
         // carries the sign, the affected skill, and the flavour line ("+1 Half Light: Head as battering

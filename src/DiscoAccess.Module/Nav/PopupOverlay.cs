@@ -28,9 +28,9 @@ namespace DiscoAccess.Module.Nav
             var inst = ConfirmationController.Singleton;
             var root = new PopupRoot(inst);
             root.Add(new PopupMessage());
-            var confirm = new PopupButton(inst.Confirm);
+            var confirm = new ClickButton(inst.Confirm);
             root.Add(confirm);
-            root.Add(new PopupButton(inst.Cancel));
+            root.Add(new ClickButton(inst.Cancel));
             // Land on the default action so Enter confirms at once; the body line above stays reachable.
             root.SetFocusedChild(confirm);
             return root;

@@ -216,6 +216,9 @@ namespace DiscoAccess.Core.Strings
         public const string ScreenHelp = "help";
         public const string ScreenThought = "thought";
         public const string ScreenCollage = "collage mode";
+        // The world's loot panel (opened by interacting with an unlocked container). It has no ViewType of
+        // its own (the view stays CLEAR) and no game title, so its name is authored.
+        public const string ScreenContainer = "container";
 
         // The mod's own settings menu, opened with Ctrl+M. It maps to no game view, so its name is authored.
         public const string ScreenModMenu = "mod menu";
@@ -427,6 +430,18 @@ namespace DiscoAccess.Core.Strings
         /// character in place (the game's own movement block); the orb rides the character and must be
         /// triggered to release it.</summary>
         public const string WorldOrbHolds = "held by an orb, resolve it to move";
+
+        // ---- The world's loot panel (see the module's ContainerPanelScreen / ContainerReader) ----
+
+        /// <summary>Spoken when the loot panel closes, whatever closed it (the Close button, taking the
+        /// last item, Take all, or walking out of range) - the panel is silent otherwise and a blind
+        /// player must hear that the list they were arrowing through is gone.</summary>
+        public const string WorldContainerClosed = "container closed";
+
+        /// <summary>Spoken when interacting with a locked container the game refuses to open (it plays
+        /// only a rattle sound). Fallback for when the game's own "Locked" tooltip term fails to
+        /// resolve; the term is preferred so the word localizes.</summary>
+        public const string StatusLocked = "locked";
 
         // ---- World status readouts (mod-authored; the game has no spoken equivalent) ----
 

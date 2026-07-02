@@ -65,8 +65,11 @@ namespace DiscoAccess.Module
             int slash = name.LastIndexOf('/');
             if (slash >= 0)
                 name = name.Substring(slash + 1);
-            // The image term carries no category; its caption lives in the Buttons category.
-            return Translate("Buttons/" + name + "_TEXT");
+            // The image term carries no category; its caption lives in the Buttons category. A caption
+            // here is one short phrase; a line break in it is layout to fit the button art ("TAKE\nALL"),
+            // so it is collapsed to a space rather than left for the filter's multi-line pause.
+            string caption = Translate("Buttons/" + name + "_TEXT");
+            return caption == null ? null : string.Join(" ", caption.Split((char[])null, System.StringSplitOptions.RemoveEmptyEntries));
         }
     }
 }

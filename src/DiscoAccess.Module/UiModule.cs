@@ -44,6 +44,9 @@ namespace DiscoAccess.Module
         // drained from the pump, gated on the world being active and the player's setting. Owns no native
         // handle; its patch rides _harmony.
         private BarkReader _barks;
+        // Speaks the container events the game marks with sound alone (a locked refusal, the loot panel
+        // closing) via Harmony feeders drained from the pump. Owns no native handle; its patches ride _harmony.
+        private ContainerReader _containers;
         private static readonly InputCategory[] UiCategory = { InputCategory.UI };
         // Status precedes UI ON PURPOSE: in a screen that wants the status keys (dialogue) the heal arrows
         // (Status, Left/Right) shadow the inert UI Left/Right; the rest of UI (Up/Down/Tab/Enter/Escape/
@@ -82,6 +85,9 @@ namespace DiscoAccess.Module
             // Speak the world's background barks; its Harmony patch registers through this load's instance.
             _barks = new BarkReader(_host);
             _barks.Apply(_harmony);
+            // Speak the locked-container refusal and the loot panel's close; likewise on this load's Harmony.
+            _containers = new ContainerReader(_host);
+            _containers.Apply(_harmony);
 
             // UI navigation keys: live only while our navigator owns the keyboard, and routed into it by
             // the dispatcher below. Directions and Tab auto-repeat while held.
@@ -261,6 +267,10 @@ namespace DiscoAccess.Module
             // Speak any world barks captured since last frame (queued, never interrupting). Self-gates on the
             // world being the live layer and the player's setting, and drops barks caught while it is not.
             _barks.Drain();
+
+            // Speak any container cues (locked refusal, panel close), after the notifications so a take
+            // reads "received ..." before "container closed".
+            _containers.Drain();
         }
 
         // Dev seam (IDevDriver): drive our navigator from the dev server's /input, the headless counterpart
@@ -291,6 +301,7 @@ namespace DiscoAccess.Module
             _world?.Dispose(); // disengage the overlay (release any audio voices) before the context drops
             _notifications?.Dispose(); // drop the static back-reference before the patches are removed
             _barks?.Dispose(); // likewise drop the bark feeder's back-reference before unpatching
+            _containers?.Dispose(); // and the container feeder's
             _harmony?.UnpatchSelf();
             _harmony = null;
             _input = null; // owns no native handle; the registration list goes with the dropped context
@@ -299,6 +310,7 @@ namespace DiscoAccess.Module
             _commands = null;
             _notifications = null;
             _barks = null;
+            _containers = null;
             _host = null;
         }
     }

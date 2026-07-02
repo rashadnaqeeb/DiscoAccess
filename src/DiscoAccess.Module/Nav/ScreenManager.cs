@@ -108,6 +108,9 @@ namespace DiscoAccess.Module.Nav
             Register(new InventoryScreen());
             Register(new DialogueScreen());
             Register(new HelpOverlayScreen());
+            // The world's loot panel: CLEAR (free-roam) has no screen of its own, so this applies only
+            // while the panel is up and the world reader keeps the keyboard the rest of the time.
+            Register(new ContainerPanelScreen());
         }
 
         private void Register(Screen screen) => _screens.Add(screen);
