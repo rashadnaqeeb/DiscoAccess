@@ -25,9 +25,9 @@ namespace DiscoAccess.Module.Nav
     /// The lever is taken while we drive a registered screen OR the popup overlay. DE's shared
     /// confirmation/error/quit popup (<see cref="PopupOverlay"/>) floats over any view rather than matching a
     /// ViewType, so it is resolved by visibility ahead of the view's own screen and driven as a navigable
-    /// overlay; the screen underneath is kept attached and resumed in place when the popup closes. A screen
-    /// with no registered <see cref="Screen"/> (not yet migrated) and no popup hands the keyboard back to the
-    /// game, so the legacy focus-follower fallback keeps working while screens migrate one at a time.
+    /// overlay; the screen underneath is kept attached and resumed in place when the popup closes. A view
+    /// with no registered <see cref="Screen"/> and no popup hands the keyboard back to the game's own input
+    /// and is not read.
     /// </summary>
     public sealed class ScreenManager
     {
@@ -75,11 +75,6 @@ namespace DiscoAccess.Module.Nav
         /// <summary>Whether our navigator is driving a registered screen this frame (lever taken). Set by
         /// <see cref="Tick"/> before input is polled, so the input layer can gate UI keys on it.</summary>
         public bool OwnsKeyboard { get; private set; }
-
-        /// <summary>Whether the view system is up (ViewsPagesBridge.Current read without throwing) this
-        /// frame. False during early boot; the focus-follower fallback must skip its own
-        /// ViewsPagesBridge/NavigationManager reads until this is true or they throw too.</summary>
-        public bool ViewReady { get; private set; }
 
         /// <summary>Whether type-ahead search is enabled on the attached screen (default true when none).</summary>
         public bool TypeAheadEnabled => _attachedScreen?.TypeAheadEnabled ?? true;
@@ -252,12 +247,10 @@ namespace DiscoAccess.Module.Nav
             if (!TryGetView(out ViewType view))
             {
                 // The view system is not ready yet (early boot): leave the game its input and detach.
-                ViewReady = false;
                 OwnsKeyboard = false;
                 if (_attachedScreen != null) { _nav.Attach(null); _attachedScreen = null; }
                 return;
             }
-            ViewReady = true;
 
             Screen screen = Resolve(view);
             bool registered = screen != null;
