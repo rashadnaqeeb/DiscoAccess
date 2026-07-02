@@ -152,19 +152,22 @@ namespace DiscoAccess.Module.World
             return WorldConvert.ToSnv(world);
         }
 
-        /// <summary>Whether the point lies under an unrevealed fog-of-war zone: raycast straight up into the
-        /// game's zone volumes (the game's own point-to-zone idiom - each interactable does exactly this to
-        /// register with its zone) and read the hit zone's status. Anything not ACTIVE (never seen, or seen
-        /// once and now only remembered) is fogged: the senses cover what is visible right now, not what is
-        /// half-remembered. Zone colliders only exist in physics while their area is loaded, which is the
-        /// only time such ground can be in frame; unzoned ground is never fogged.</summary>
+        /// <summary>Whether the point lies under an unrevealed fog-of-war zone, by the one fog contract
+        /// every sense shares (<see cref="FogSense"/>): only never-entered UNSEEN space hides - a dimmed,
+        /// previously-visited room is knowable, and the cursor may glide into it exactly because the scanner
+        /// and the cursor's naming offer what stands there. The capped probe also keeps the Whirling's
+        /// stacked floors from shadowing each other. Zone colliders only exist in physics while their area
+        /// is loaded, which is the only time such ground can be in frame; unzoned ground is never fogged.</summary>
         public bool IsFogged(Snv point)
+            => FogSense.At(WorldConvert.ToUnity(point)) == FogSense.ZoneState.Unseen;
+
+        /// <summary>Whether a complete navmesh path joins the two points. Backs the scanner's crossing gate
+        /// (a door beyond a closed door is severed from the player until it opens).</summary>
+        public bool WalkExists(Snv from, Snv to)
         {
-            if (!Physics.Raycast(WorldConvert.ToUnity(point), Vector3.up, out RaycastHit hit,
-                                 FogProbeRange, FogZoneLayerMask))
-                return false;
-            var zone = hit.collider.GetComponent<Sunshine.Unseen.Zone>();
-            return zone != null && zone._status != Sunshine.Unseen.Zone.Status.ACTIVE;
+            var path = new NavMeshPath();
+            return NavMesh.CalculatePath(WorldConvert.ToUnity(from), WorldConvert.ToUnity(to), AllAreas, path)
+                   && path.status == NavMeshPathStatus.PathComplete;
         }
 
         /// <summary>Assert the camera's zoom at the area's own maximum (the widest a sighted player can see
@@ -195,11 +198,6 @@ namespace DiscoAccess.Module.World
         // Navmesh snap radius for the frame-drag clamp - generous, since a viewport-clamped point lands at
         // the old camera depth and can float a little off the floor.
         private const float ClampSnapRadius = 2.5f;
-        // The fog-zone volumes' physics layer (the game's interactables raycast this same mask to find their
-        // zone) and a cast long enough to reach a volume from any floor under it.
-        private const int FogZoneLayerMask = 0x2000;
-        private const float FogProbeRange = 1000f;
-
         // Cursor debris-skip tuning (see TrySkipBoundary). Chosen by profiling Martinaise's navmesh: at a ~1 m
         // gap the boundaries are still thin seams and genuinely small debris (all measuring a tight sub-1.8
         // detour), while a detour within 2x the straight hop separates that debris from a thin wall with ground

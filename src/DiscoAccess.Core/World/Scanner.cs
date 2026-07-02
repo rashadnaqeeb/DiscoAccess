@@ -19,9 +19,9 @@ namespace DiscoAccess.Core.World
     /// set changes as rooms reveal and orbs stream - and the selection is continued by proxy identity, which
     /// the registry keeps stable. The set is what a sighted player could see and act on right now:
     /// <see cref="IWorldItem.IsAccessible"/> and <see cref="IWorldItem.IsVisible"/> both required (the same
-    /// gate the movement cursor's own sense uses), inside the camera's visible frame, and not under
-    /// unrevealed fog of war - so every offered thing is rendered, revealed, and reachable by the cursor,
-    /// and discovery of the wider world is walking. Sorted nearest-first from the scan reference (the
+    /// gate the movement cursor's own sense uses; visibility carries the fog-of-war contract) and inside
+    /// the camera's visible frame - so every offered thing is rendered, revealed, and reachable by the
+    /// cursor, and discovery of the wider world is walking. Sorted nearest-first from the scan reference (the
     /// movement cursor), so "next" walks outward, and re-sorting from a moved cursor is the "look around
     /// from here" behaviour. Categories are <see cref="WorldTaxonomy.Scan"/> plus a synthetic Everything at
     /// index 0; stepping categories skips empty ones (Everything always lands, even empty).
@@ -145,8 +145,8 @@ namespace DiscoAccess.Core.World
                        PanWidth);
         }
 
-        // The current category's live list: the accessible-and-visible things inside the visible frame and
-        // clear of fog (what a sighted player could see and act on right now), category-filtered through the
+        // The current category's live list: the accessible-and-visible things inside the visible frame
+        // (what a sighted player could see and act on right now), category-filtered through the
         // door-folds-into-exit mapping, sorted nearest-first from the scan reference by body position.
         // Rebuilt on every press; never cached.
         private List<IWorldItem> Build(Vector3 from)
@@ -165,8 +165,10 @@ namespace DiscoAccess.Core.World
 
         // The one offering gate Build and CountIn share, so the category counts can never disagree with the
         // list. In-frame is tested at the thing's part nearest the scan reference, so a wide thing that pokes
-        // into the frame (a doorway half in view) still counts; the fog test is belt-and-braces on top of the
-        // game deactivating fogged interactables itself, making the contract explicit rather than inherited.
+        // into the frame (a doorway half in view) still counts. Fog of war is IsVisible's contract - the
+        // item judges a fogged body at its approach stand-point, so a closed room's own door is offered from
+        // the corridor side - and the scanner takes no second fog opinion: a body-position fog test here
+        // would re-hide exactly those boundary things.
         //
         // The height-reachability pair is the cursor's own gate (ObjectCueSystem.Under): a thing past the
         // same-level pivot slack is offered only when it belongs to ground walk-connected from here or is a
@@ -175,13 +177,23 @@ namespace DiscoAccess.Core.World
         // the ground-floor door and the tracks on the plaza below the balcony, reachable only by going
         // elsewhere, never land in the list to fail a walk-interact later. The path test runs only for the
         // few off-slack candidates in frame.
+        //
+        // A same-level CROSSING (door, exit) must additionally have a complete walk to its stand-point: a
+        // closed door carves the walkable mesh, so the corridor doors beyond the player's own shut door are
+        // severed and a walk-interact at them would stall against it - they return the moment it opens (the
+        // list rebuilds per press). Only crossings, because doors are the things that systematically sit
+        // behind other doors; a blanket walk requirement is the known over-rejection trap (the bartender
+        // behind his counter island, the container on a mesh-carving table) and was dropped for cost - a
+        // few doors per press keep the stand-point and path calls negligible at any sonar cadence.
         private bool Offered(IWorldItem it, Vector3 from)
         {
             if (!it.IsAccessible || !it.IsVisible) return false;
             Vector3 nearest = it.Bounds.NearestPoint(from);
-            if (!_env.InView(nearest) || _env.IsFogged(it.Position)) return false;
-            return Math.Abs(nearest.Y - from.Y) <= Overlays.Systems.ObjectCueSystem.SameLevelSlack
-                   || it.ReachableFrom(from);
+            if (!_env.InView(nearest)) return false;
+            if (Math.Abs(nearest.Y - from.Y) > Overlays.Systems.ObjectCueSystem.SameLevelSlack)
+                return it.ReachableFrom(from);
+            if (it.Category != WorldTaxonomy.Door && it.Category != WorldTaxonomy.Exit) return true;
+            return _env.WalkExists(from, it.InteractionPoint(from));
         }
 
         // The next category index with things in it, walking dir-wise with wrap-around; Everything (index 0)

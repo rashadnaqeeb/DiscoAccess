@@ -293,48 +293,78 @@ namespace DiscoAccess.Module.World
         public string Category => Classify(_e);
         public bool IsAccessible => _e.IsAccessible;
 
-        // Whether a sighted player can currently see this thing. Interiors hide unentered rooms behind a
-        // fog-of-war volume (Sunshine.Unseen.Zone, under "fow-unrevealers") rendered as black void; the
-        // game's own MouseOverHighlight.RegisterAndTurnMeOff finds an entity's zone by casting straight up
-        // on the fog layer, and this replicates that probe. UNSEEN is the never-entered black; ACTIVE and
-        // INACTIVE (seen before, currently dimmed) are both knowable, so only UNSEEN hides. No zone above
-        // (exteriors, revealed space) is visible. Read live, so a room reveals the frame its door opens.
+        // Whether a sighted player can currently see this thing. Interiors hide unentered rooms behind
+        // fog-of-war volumes rendered as black void; FogSense reads what the volume over a point says.
+        // The volumes' meshes cover rooms' open interiors but stop at walls, so a wall-recessed body (the
+        // bathroom medicine cabinet, pivot sunk 0.3 m past the volume's rim) reads no zone at all - "no
+        // volume overhead" proves a thing seeable only together with clear distance from every volume
+        // (FogSense.NearVolume). Read live, so a room reveals the frame its door opens.
         //
-        // A body inside a fog volume is not the whole story: a BOUNDARY thing - a closed room's own door,
-        // sitting in the wall - has its body under the room's volume yet is plainly seen (and knocked on)
-        // from the corridor. Its interaction stand-point sits on the approach side, so a fogged body gets a
-        // second probe there: stand-point in revealed space = visible boundary (Klaasje's corridor door);
-        // stand-point also fogged = genuinely inside (her bathroom door, reachable only through the room).
-        // The stand-point call is heavier, so it runs only for the few fogged bodies, not per item.
+        // A CROSSING (door, exit) is seen from whichever side is revealed: its body hangs under the room's
+        // volume, so it is offered when any cardinal face pokes into revealed space (the closed bathroom
+        // door, knocked on from the corridor) and hidden when every face is unseen (the same door looked
+        // for from beyond the still-black main room).
+        //
+        // Anything else under or hard against an unseen volume is judged by its APPROACH: an interaction
+        // stand-point (the spot the player would walk to in order to act) in unseen space means genuinely
+        // inside the unrevealed room (the medicine cabinet). When the player is already within the thing's
+        // interaction radius the game answers with the player's own spot - no approach information, since
+        // the radius passes through walls - so there the body's own reading decides alone: only a fogged
+        // body hides. Face evidence is NOT consulted in that case - a revealed wall-mounted thing's faces
+        // poke through its wall into the neighbouring room's fog (the shared bathroom's mirror backs onto
+        // Kitsuragi's unseen room), which would hide a thing in plain view. The stand-point call is heavier
+        // (it can run a navmesh path), so it runs only for unseen-adjacent bodies.
         public bool IsVisible
         {
             get
             {
-                if (!HiddenAt(_e.transform.position)) return true;
+                UnityEngine.Vector3 body = _e.transform.position;
+                FogSense.ZoneState at = FogSense.At(body);
+                if (at == FogSense.ZoneState.Knowable) return true;
+
+                string cat = Category;
+                if (cat == WorldTaxonomy.Door || cat == WorldTaxonomy.Exit)
+                    return at == FogSense.ZoneState.None || AnyFaceRevealed(body);
+
+                if (at == FogSense.ZoneState.None && !FogSense.NearVolume(body)) return true;
+
                 Party party = Party.Player;
                 Character main = party != null ? party.Main : null;
                 if (main == null) return false;
-                return !HiddenAt(_e.GetInteractionLocation(LocationAt(WorldConvert.ToSnv(main.transform.position))).position);
+                UnityEngine.Vector3 from = main.transform.position;
+                UnityEngine.Vector3 stand = _e.GetInteractionLocation(LocationAt(WorldConvert.ToSnv(from))).position;
+                if ((stand - from).sqrMagnitude > StandpointEpsilon * StandpointEpsilon)
+                    return FogSense.At(stand) != FogSense.ZoneState.Unseen;
+                return at != FogSense.ZoneState.Unseen;
             }
         }
 
-        // Whether this point sits under an unrevealed room's fog volume (the game's own zone probe: cast up
-        // on the fog layer, read the zone's status off the hit).
-        private static bool HiddenAt(UnityEngine.Vector3 point)
+        // The cardinal-face probes: a step out from the body on each XZ cardinal, reaching past a wall
+        // recess or a doorway line to whatever volume covers the neighbouring space.
+        private static bool AnyFaceRevealed(UnityEngine.Vector3 p)
         {
-            if (!UnityEngine.Physics.Raycast(point, UnityEngine.Vector3.up,
-                    out UnityEngine.RaycastHit hit, FogProbeDistance, FogLayerMask))
-                return false;
-            var zone = hit.collider.GetComponent<Sunshine.Unseen.Zone>();
-            return zone != null && zone.status == Sunshine.Unseen.Zone.Status.UNSEEN;
+            for (int i = 0; i < 4; i++)
+                if (FogSense.At(Face(p, i)) != FogSense.ZoneState.Unseen) return true;
+            return false;
         }
 
-        // The fog layer the game's own zone probe casts against (MouseOverHighlight.RegisterAndTurnMeOff).
-        private const int FogLayerMask = 0x2000;
-        // Far enough to reach this room's fog volume overhead, short of the next floor up: the Whirling's
-        // co-loaded floors stack ~6 m apart in world space, so a longer cast could hit the floor above's
-        // volume and hide a thing that is in plain view.
-        private const float FogProbeDistance = 4f;
+        private static UnityEngine.Vector3 Face(UnityEngine.Vector3 p, int i)
+        {
+            switch (i)
+            {
+                case 0: return new UnityEngine.Vector3(p.x + FogEdgeReach, p.y, p.z);
+                case 1: return new UnityEngine.Vector3(p.x - FogEdgeReach, p.y, p.z);
+                case 2: return new UnityEngine.Vector3(p.x, p.y, p.z + FogEdgeReach);
+                default: return new UnityEngine.Vector3(p.x, p.y, p.z - FogEdgeReach);
+            }
+        }
+
+        // How far a face probe steps out from the body: past a wall recess or a door panel's thickness,
+        // short of skipping a whole wall into the next room over.
+        private const float FogEdgeReach = 0.5f;
+        // A stand-point this close to the queried position is the game's within-radius shortcut answering
+        // with the query itself, not a computed approach.
+        private const float StandpointEpsilon = 0.05f;
         public bool RidesPlayer => false; // an entity is world-anchored, never carried by the character
 
         // The interaction stand-point and the reachability oracle, both approach-relative (computed from the

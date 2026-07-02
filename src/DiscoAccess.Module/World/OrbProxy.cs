@@ -101,7 +101,11 @@ namespace DiscoAccess.Module.World
         // deliberately needs no live orbUI to be findable (it gains one when the character walks up to it,
         // which a dormant Mullen orb never does).
         private bool IsMullenDormant => _orb.isMullenOrb && _orb.orbUI == null;
-        public bool IsVisible => IsAccessible;
+
+        // An orb under an unrevealed room's fog volume is invisible like anything else there; a
+        // player-anchored orb rides the character, whose own room is by definition revealed.
+        public bool IsVisible
+            => IsAccessible && FogSense.At(_orb.transform.position) != FogSense.ZoneState.Unseen;
 
         // A thought-cabinet orb rides the character, so the cursor's near-player skip must spare it.
         public bool RidesPlayer => IsThoughtFamily;
