@@ -171,12 +171,12 @@ namespace DiscoAccess.Module
                 () => { if (!_editGate.Active) _commands.CycleLanguage(); })
                 .AddBinding(new KeyboardBinding(KeyCode.L, ctrl: true));
 
-            // Ctrl+M opens/closes the mod's settings menu. Global, so it fires anywhere (the world, a game
+            // F12 opens/closes the mod's settings menu. Global, so it fires anywhere (the world, a game
             // menu, a conversation); the navigator then drives the overlay through the UI category above. Not
             // while a game text field owns the keyboard, so it never steals a keystroke from a save-name edit.
             _input.Register(ModMenuAction, Strings.InputModMenu, InputCategory.Global,
                 () => { if (!_editGate.Active) _screens.ToggleModMenu(); })
-                .AddBinding(new KeyboardBinding(KeyCode.M, ctrl: true));
+                .AddBinding(new KeyboardBinding(KeyCode.F12));
 
             // The live category each frame: the UI category while our navigator owns the keyboard (a
             // registered screen, no popup up), plus the Status keys when that screen wants them (the

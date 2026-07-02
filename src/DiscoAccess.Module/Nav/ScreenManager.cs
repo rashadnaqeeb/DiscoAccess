@@ -64,7 +64,7 @@ namespace DiscoAccess.Module.Nav
         // the broken screen stays up. Cleared on any successful build.
         private Screen _buildFailed;
 
-        // The mod's own settings menu when open (Ctrl+M), null when closed. A mod overlay floats above the
+        // The mod's own settings menu when open (F12), null when closed. A mod overlay floats above the
         // game and maps to no ViewType, so it is driven ahead of any view or popup; _modMenuAttached gates
         // its one-time build/announce, and _modMenuWasActive lets the frame after close resume the screen
         // underneath (re-attach our navigator and re-announce its focus, which the overlay left untouched).
@@ -176,7 +176,7 @@ namespace DiscoAccess.Module.Nav
         /// one-frame hand-back, not a release.</summary>
         public void DeferEscapeToGame() => InControl.InputManager.Enabled = true;
 
-        /// <summary>Open the mod menu if closed, close it if open. Driven by the Ctrl+M global hotkey. The
+        /// <summary>Open the mod menu if closed, close it if open. Driven by the F12 global hotkey. The
         /// open/close takes effect on the next <see cref="Tick"/>.</summary>
         public void ToggleModMenu()
         {
@@ -193,7 +193,7 @@ namespace DiscoAccess.Module.Nav
         public void Tick(bool editEnded)
         {
             // The mod menu floats above everything when open: it owns the keyboard, drives its own navigable
-            // tree, and closes on Escape (or Ctrl+M again). It maps to no game view, so it is resolved before
+            // tree, and closes on Escape (or F12 again). It maps to no game view, so it is resolved before
             // the view system and the popup overlay. The screen underneath stays attached (untouched) and
             // resumes when the menu closes.
             if (_modMenu != null)

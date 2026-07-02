@@ -224,7 +224,7 @@ namespace DiscoAccess.Core.Strings
         // its own (the view stays CLEAR) and no game title, so its name is authored.
         public const string ScreenContainer = "container";
 
-        // The mod's own settings menu, opened with Ctrl+M. It maps to no game view, so its name is authored.
+        // The mod's own settings menu, opened with F12. It maps to no game view, so its name is authored.
         public const string ScreenModMenu = "mod menu";
 
         // Mod settings labels, spoken as the setting's name in the mod menu. Authored: these are the mod's

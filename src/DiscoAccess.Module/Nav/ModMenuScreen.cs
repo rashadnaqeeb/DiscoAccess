@@ -7,9 +7,9 @@ using DiscoAccess.Core.UI.Nav;
 namespace DiscoAccess.Module.Nav
 {
     /// <summary>
-    /// The mod's own settings menu, a navigable overlay opened with Ctrl+M from anywhere. It maps to no game
+    /// The mod's own settings menu, a navigable overlay opened with F12 from anywhere. It maps to no game
     /// <see cref="Sunshine.Views.ViewType"/>: the <see cref="ScreenManager"/> pushes it as an overlay that
-    /// floats above the game, owns the keyboard, and closes on Escape (or Ctrl+M again). Built fresh on each
+    /// floats above the game, owns the keyboard, and closes on Escape (or F12 again). Built fresh on each
     /// open from the live setting values, one toggle per mod setting.
     /// </summary>
     public sealed class ModMenuScreen
