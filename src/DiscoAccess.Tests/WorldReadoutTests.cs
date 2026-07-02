@@ -43,8 +43,8 @@ namespace DiscoAccess.Tests
         [Fact]
         public void WalkFeedback_NameFirst_OrFallsBackWhenNameless()
         {
-            Assert.Equal("Cuno, walking", Strings.WorldWalkingTo("Cuno"));
-            Assert.Equal("walking", Strings.WorldWalkingTo(""));      // nameless target -> bare-walk wording
+            Assert.Equal("moving to Cuno", Strings.WorldMovingTo("Cuno"));
+            Assert.Equal("moving", Strings.WorldMovingTo(""));        // nameless target -> bare-move wording
             Assert.Equal("Cuno, can't reach", Strings.WorldUnreachable("Cuno"));
             Assert.Equal("can't reach", Strings.WorldUnreachable(""));
         }

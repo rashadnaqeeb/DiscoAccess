@@ -232,7 +232,7 @@ namespace DiscoAccess.Module.World
             if (target != null)
                 _walk.BeginInteract(target, player);
             else
-                _walk.BeginWalk(cursor, Strings.WorldWalking);
+                _walk.BeginWalk(cursor, Strings.WorldMoving);
         }
 
         // ---- the scanner verbs, fired by the world keys; every landing plants the cursor ----

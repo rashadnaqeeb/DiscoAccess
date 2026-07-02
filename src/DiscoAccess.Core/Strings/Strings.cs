@@ -439,15 +439,19 @@ namespace DiscoAccess.Core.Strings
             => string.IsNullOrEmpty(subregion) ? map : map + ", " + subregion;
 
         // The walk-then-interact verb's spoken feedback. The mod authors these (DE has no equivalent line):
-        // committing a walk, the bare-ground walk with no target, the reachability refusal, and the cancel.
-        // Name-first so the varying part lands first; the status word follows.
+        // committing a move, the bare-ground move with no target, its arrival, the reachability refusal,
+        // and the cancel.
 
         /// <summary>Spoken on committing the walk-then-interact verb toward a named target.</summary>
-        public static string WorldWalkingTo(string name)
-            => string.IsNullOrEmpty(name) ? WorldWalking : name + ", walking";
+        public static string WorldMovingTo(string name)
+            => string.IsNullOrEmpty(name) ? WorldMoving : "moving to " + name;
 
-        /// <summary>Spoken on walking to a bare-ground spot with no target.</summary>
-        public const string WorldWalking = "walking";
+        /// <summary>Spoken on moving to a bare-ground spot with no target.</summary>
+        public const string WorldMoving = "moving";
+
+        /// <summary>Spoken on arriving at a bare-ground spot (a targeted move ends in its interaction,
+        /// whose own readers speak instead).</summary>
+        public const string WorldArrived = "arrived";
 
         /// <summary>Spoken when the target cannot be pathed to from where the character currently stands.</summary>
         public static string WorldUnreachable(string name)

@@ -15,21 +15,21 @@ namespace DiscoAccess.Module.World
     /// "walking" when a walk is due, "can't reach" on refusal, nothing when in range (the game acts
     /// instantly and its own readers speak).
     ///
-    /// An orb triggers only in place, so there the verb still owns the walk: target the stand-point, drive
-    /// <c>SetDestination</c>, watch <c>movementStatus</c>, and <c>Interact</c> on arrival - a small
-    /// arrival-watching state machine ticked each frame by the <see cref="WorldReader"/>, cancellable
-    /// mid-path. A no-target Enter is a plain walk to bare ground handled by <see cref="BeginWalk"/>.
+    /// An undrawn orb triggers only in place, so there the verb still owns the walk: target the
+    /// stand-point, drive the game's party ground move (<see cref="Drive"/>), watch <c>movementStatus</c>,
+    /// and <c>Interact</c> on arrival - a small arrival-watching state machine ticked each frame by the
+    /// <see cref="WorldReader"/>, cancellable mid-path. A no-target Enter is a plain walk to bare ground
+    /// handled by <see cref="BeginWalk"/>.
     /// </summary>
     internal sealed class WalkInteract
     {
         // Consecutive non-moving frames tolerated before giving up. Generous before the walk first moves
-        // (SetDestination can read IDLE for several frames while it engages a long path), and shorter once it
+        // (the move command can read IDLE for several frames while it engages a long path), and shorter once it
         // has moved (a halt then is a real stall: a dynamic obstacle, an off-mesh sliver). At ~60 fps these
         // are about a second and three-quarters of a second.
         private const int StartupGraceFrames = 60;
         private const int StallGraceFrames = 45;
-        // How many times a stalled walk is re-issued while the game's own oracle still says the target is
-        // reachable, before giving up. A stall short of a reachable target is usually transient - a wandering
+        // How many times a stalled walk is re-issued before giving up. A stall is usually transient - a wandering
         // NPC briefly blocking a crowded doorway (the Whirling entrance), or a degenerate path the game handed
         // back - and clears on a fresh attempt from where the character stopped; this bounds that so a genuinely
         // stuck walk still ends rather than looping.
@@ -58,10 +58,9 @@ namespace DiscoAccess.Module.World
         public bool BeginInteract(IWalkTarget target, Snv from)
         {
             // A paralyzer or unresolved thought orb freezes the character where they stand (the game's own
-            // HasOrbsBlockingTequilaMovement gate, which its click flow honours silently and our direct
-            // SetDestination bypasses). Refuse to walk away while held - except an in-place interact with the
+            // HasOrbsBlockingTequilaMovement gate, which its move paths honour silently). Refuse first, so
+            // the hold is SPOKEN rather than the game's mute refusal - except an in-place interact with the
             // holding orb itself (a player-anchored orb travels nowhere), which is how the block is released.
-            // Checked for self-driving targets too, so the hold is SPOKEN rather than the game's mute refusal.
             if (MovementBlocked() && !target.RidesPlayer)
             {
                 _host.Speech.Speak(Strings.WorldOrbHolds, interrupt: true);
@@ -80,17 +79,17 @@ namespace DiscoAccess.Module.World
                     _host.Speech.Speak(Strings.WorldUnreachable(target.Name), interrupt: true);
                     return false;
                 }
-                if (GameMoving()) _host.Speech.Speak(Strings.WorldWalkingTo(target.Name), interrupt: true);
+                if (GameMoving()) _host.Speech.Speak(Strings.WorldMovingTo(target.Name), interrupt: true);
                 else SpeakPostInteract(target);
                 return true;
             }
 
-            Snv stand = target.Approach(from, out float heading);
-            if (!Drive(stand, heading)) return false;
+            Snv stand = target.Approach(from, out _); // the facing is the game's own (walk direction)
+            if (!Drive(stand)) return false;
             _target = target;
             _label = string.IsNullOrEmpty(target.Name) ? "target" : target.Name;
             _retries = 0;
-            _host.Speech.Speak(Strings.WorldWalkingTo(target.Name), interrupt: true);
+            _host.Speech.Speak(Strings.WorldMovingTo(target.Name), interrupt: true);
             return true;
         }
 
@@ -107,7 +106,7 @@ namespace DiscoAccess.Module.World
                 _host.Speech.Speak(Strings.WorldOrbHolds, interrupt: true);
                 return false;
             }
-            if (!Drive(point, null)) return false;
+            if (!Drive(point)) return false;
             _target = null;
             _label = "ground";
             _host.Speech.Speak(announcement, interrupt: true);
@@ -162,7 +161,7 @@ namespace DiscoAccess.Module.World
                 return;
             }
 
-            // Non-moving and not arrived for longer than the grace: either SetDestination never engaged (a
+            // Non-moving and not arrived for longer than the grace: either the move never engaged (a
             // longer startup grace, since a long path can read IDLE for several frames) or the character moved
             // then halted short (a dynamic obstacle, an off-mesh sliver). Give up rather than watch forever.
             int grace = _movedOnce ? StallGraceFrames : StartupGraceFrames;
@@ -190,8 +189,8 @@ namespace DiscoAccess.Module.World
             {
                 _retries++;
                 Snv here = WorldConvert.ToSnv(main.transform.position);
-                Snv stand = _target.Approach(here, out float heading);
-                if (Drive(stand, heading))
+                Snv stand = _target.Approach(here, out _);
+                if (Drive(stand))
                 {
                     _host.LogWarning($"WalkInteract: walk to {_label} stalled; retry {_retries}/{MaxStallRetries}.");
                     return;
@@ -214,7 +213,9 @@ namespace DiscoAccess.Module.World
 
         private void Arrive(Snv player)
         {
-            if (_target == null) return; // bare-ground walk: nothing to interact with
+            // A bare-ground walk's arrival IS the whole action, so it is the one move that announces it;
+            // a targeted walk ends in its interaction, whose own readers speak instead.
+            if (_target == null) { _host.Speech.Speak(Strings.WorldArrived, interrupt: true); return; }
             // Gate the interact on the game's own arrival-range test. At a COMPLETED stand-point this holds;
             // if somehow short, Interact() refuses in place rather than acting at the wrong spot - logged so
             // the miss is visible rather than silent.
@@ -235,20 +236,20 @@ namespace DiscoAccess.Module.World
                 _host.Speech.Speak(line, interrupt: false);
         }
 
-        private bool Drive(Snv point, float? heading)
+        private bool Drive(Snv point)
         {
-            Character main = Main;
-            if (main == null) return false;
-            // The game's heading argument is an Il2Cpp nullable: a value faces the character that way on
-            // arrival, the empty case leaves the heading to the game (a bare-ground walk).
-            Il2CppSystem.Nullable<float> h = heading.HasValue
-                ? new Il2CppSystem.Nullable<float>(heading.Value)
-                : new Il2CppSystem.Nullable<float>();
-            // The Run-to-destinations setting picks the pace: RUN drives run speed directly, while AUTOMATIC
-            // defers to the game's own distance policy, which walks (its auto-run distance is unbounded),
-            // matching a vanilla single click. This is the same primitive the game's click path bottoms out in.
+            GameController gc = GameController.Singleton;
+            if (gc == null || Main == null) return false;
+            // The game's own ground move (NavMeshClickHandler.Interact bottoms out here): the point boxed
+            // into MoveToTarget walks the WHOLE PARTY formation - Kim follows, exactly as on a vanilla
+            // ground click - where a bare Character.SetDestination moved the main character alone and
+            // stranded him (proven live: a 9 m SetDestination walk left Kim standing). AUTOMATIC and RUN
+            // are the click's own single/double-click values, and the arrival heading is the game's (the
+            // walk direction). False means the move was priced unreachable and never started.
             MovementMode mode = _host.Settings.RunToDestinations.Value ? MovementMode.RUN : MovementMode.AUTOMATIC;
-            main.SetDestination(WorldConvert.ToUnity(point), h, mode, false);
+            if (!gc.MoveToTarget(WorldConvert.ToUnity(point).BoxIl2CppObject(), mode,
+                                 Formation.Purpose.UNIVERSAL, true, false))
+                return false;
             _dest = point;
             _active = true;
             _movedOnce = false;
