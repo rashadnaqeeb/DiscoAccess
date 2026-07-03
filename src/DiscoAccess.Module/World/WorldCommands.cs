@@ -15,7 +15,8 @@ namespace DiscoAccess.Module.World
     /// Because the world keyboard mutes InControl wholesale, each of these re-provides one muted game action
     /// by calling the game's own method directly (the same call its native input handler would make), never by
     /// pressing a key. The handlers are fired from the input pump, which logs any throw, so they trust the
-    /// live singletons to exist (they do, in the in-world view this category is live in).
+    /// live singletons to exist (they do, in the in-world view this category is live in - except the global
+    /// quicksave/quickload pair, which can fire before a world exists and guard for it).
     /// </summary>
     internal sealed class WorldCommands
     {
@@ -101,13 +102,27 @@ namespace DiscoAccess.Module.World
             _host.Speech.Speak(used, interrupt: true);
         }
 
+        // Global keys, so both can fire anywhere - a menu, a conversation, even the title screen, where
+        // World.Singleton does not exist yet (the one place these handlers cannot trust the singletons).
+        // The game gates both (CanSave refuses dialogue, cutscenes, most views; CanQuickLoad adds
+        // transitions) and DoQuickSave silently no-ops when refused, so the refusal is spoken here.
         // The game raises its own QuicksaveComplete notification when the save lands, which NotificationReader
-        // speaks, so this only triggers the save (a line here would double-speak it).
-        public void QuickSave() => SunshinePersistence.Singleton.DoQuickSave();
+        // speaks, so an accepted press only triggers the save (a line here would double-speak it).
+        public void QuickSave()
+        {
+            if (global::World.Singleton == null || !SunshinePersistence.CanSave())
+            { _host.Speech.Speak(Strings.WorldQuickSaveUnavailable, interrupt: true); return; }
+            SunshinePersistence.Singleton.DoQuickSave();
+        }
 
+        // CanQuickLoad gates on context only, not on a quicksave existing (DoQuickLoad would hand Load a
+        // null save name), so the two refusals are distinguished: nothing to load vs wrong moment.
         public void QuickLoad()
         {
-            if (!SunshinePersistence.CanQuickLoad()) { _host.Speech.Speak(Strings.WorldNoQuickSave, interrupt: true); return; }
+            if (global::World.Singleton == null || !SunshinePersistence.CanQuickLoad())
+            { _host.Speech.Speak(Strings.WorldQuickLoadUnavailable, interrupt: true); return; }
+            if (string.IsNullOrEmpty(SunshinePersistenceFileManager.GetLastSaveWithNamePart(SunshinePersistenceFileManager.QUICK_SAVE_SLOT_NAME)))
+            { _host.Speech.Speak(Strings.WorldNoQuickSave, interrupt: true); return; }
             _host.Speech.Speak(Strings.WorldQuickLoading, interrupt: true);
             SunshinePersistence.Singleton.DoQuickLoad();
         }

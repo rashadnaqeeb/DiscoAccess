@@ -548,6 +548,10 @@ namespace DiscoAccess.Core.Strings
             // Quick-load beginning / quick-save slot not created yet.
             D("WorldQuickLoading", "quick loading"),
             D("WorldNoQuickSave", "no quick save"),
+            // The F5/F8 press refused: the game gates saving and loading (dialogue, cutscenes, most
+            // menus). Match WorldNoLanguageSwitch's phrasing.
+            D("WorldQuickSaveUnavailable", "quick save unavailable"),
+            D("WorldQuickLoadUnavailable", "quick load unavailable"),
             // The language quick-switch key switched the game's language.
             D("WorldLanguageChanged", "language changed"),
             // The quick-switch refused: the game gates it (title menu, settings screen, photo mode,
@@ -1136,6 +1140,8 @@ namespace DiscoAccess.Core.Strings
         public static string WorldRightHandEmpty => T("WorldRightHandEmpty");
         public static string WorldQuickLoading => T("WorldQuickLoading");
         public static string WorldNoQuickSave => T("WorldNoQuickSave");
+        public static string WorldQuickSaveUnavailable => T("WorldQuickSaveUnavailable");
+        public static string WorldQuickLoadUnavailable => T("WorldQuickLoadUnavailable");
         public static string WorldLanguageChanged => T("WorldLanguageChanged");
         public static string WorldNoLanguageSwitch => T("WorldNoLanguageSwitch");
 

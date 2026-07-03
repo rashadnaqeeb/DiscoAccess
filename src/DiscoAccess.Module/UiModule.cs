@@ -187,15 +187,25 @@ namespace DiscoAccess.Module
             _input.Register(WorldActions.Help, Strings.InputWorldHelp, InputCategory.World, () => _commands.OpenHelp()).AddBinding(new KeyboardBinding(KeyCode.F1));
 
             // Gameplay quick-actions. Left/Right use the assigned heal item for the two bars (matching the
-            // controller dpad); 1/2 use the hand-equipped items; F5/F8 quicksave/quickload. The heal arrows
-            // are Status, not World, so they stay live in a screen that wants them (the conversation view,
-            // where health can run out mid-talk) without dragging the rest of the world keys in.
+            // controller dpad); 1/2 use the hand-equipped items. The heal arrows are Status, not World, so
+            // they stay live in a screen that wants them (the conversation view, where health can run out
+            // mid-talk) without dragging the rest of the world keys in.
             _input.Register(WorldActions.HealEndurance, Strings.InputWorldHealHealth, InputCategory.Status, () => _commands.HealEndurance()).AddBinding(new KeyboardBinding(KeyCode.LeftArrow));
             _input.Register(WorldActions.HealVolition, Strings.InputWorldHealMorale, InputCategory.Status, () => _commands.HealVolition()).AddBinding(new KeyboardBinding(KeyCode.RightArrow));
             _input.Register(WorldActions.LeftHandItem, Strings.InputWorldLeftHandItem, InputCategory.World, () => _commands.UseLeftHand()).AddBinding(new KeyboardBinding(KeyCode.Alpha1));
             _input.Register(WorldActions.RightHandItem, Strings.InputWorldRightHandItem, InputCategory.World, () => _commands.UseRightHand()).AddBinding(new KeyboardBinding(KeyCode.Alpha2));
-            _input.Register(WorldActions.QuickSave, Strings.InputWorldQuickSave, InputCategory.World, () => _commands.QuickSave()).AddBinding(new KeyboardBinding(KeyCode.F5));
-            _input.Register(WorldActions.QuickLoad, Strings.InputWorldQuickLoad, InputCategory.World, () => _commands.QuickLoad()).AddBinding(new KeyboardBinding(KeyCode.F8));
+
+            // F5/F8 (and Alt+S/Alt+L) quicksave/quickload, global so they fire from a menu or a conversation
+            // too, not just free-roam. The game's own CanSave/CanQuickLoad gates decide whether the press is
+            // honored, and a refusal is spoken (WorldCommands), never silent. Not while a text field is editing.
+            _input.Register(WorldActions.QuickSave, Strings.InputWorldQuickSave, InputCategory.Global,
+                () => { if (!_editGate.Active) _commands.QuickSave(); })
+                .AddBinding(new KeyboardBinding(KeyCode.F5))
+                .AddBinding(new KeyboardBinding(KeyCode.S, alt: true));
+            _input.Register(WorldActions.QuickLoad, Strings.InputWorldQuickLoad, InputCategory.Global,
+                () => { if (!_editGate.Active) _commands.QuickLoad(); })
+                .AddBinding(new KeyboardBinding(KeyCode.F8))
+                .AddBinding(new KeyboardBinding(KeyCode.L, alt: true));
 
             // Status readouts: bare letters, each press re-reads (distinct by modifier from the Ctrl+letter
             // screen keys: Ctrl+T thought cabinet vs T time, etc.). Status, not World, so they stay live in a
