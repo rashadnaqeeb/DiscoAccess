@@ -326,7 +326,79 @@ namespace DiscoAccess.Module.World
         // child-renderer sweep is too costly for (the same trade the footprint cache makes).
         public string Category => _category ??= Classify(_e);
         private string _category;
-        public bool IsAccessible => _e.IsAccessible;
+        public bool IsAccessible => _e.IsAccessible && !SoftDespawned;
+
+        // The game's soft despawn, which its IsAccessible flag does not reflect: a character who walks
+        // off is not destroyed but parked at the scene origin with the click collider and every body
+        // renderer disabled, still active and registered in sceneEntitySet (Klaasje leaving the Whirling
+        // balcony, proven live). To a sighted player the thing is gone - the game's mouse picking raycasts
+        // colliders, so a disabled collider cannot be clicked - and the parking spot can sit right under
+        // the cursor, so an unfiltered phantom is offered as if present. Despawned means: it HAS click
+        // colliders, none usable, and no solid body renderer showing either. An enabled body keeps a
+        // merely-unclickable thing offered (conservative), and a thing with no click colliders at all
+        // (some triggers) is never judged despawned. Component sets are gathered once (the footprint and
+        // marker trade); the enabled states are read live per query, so a scheduled respawn re-offers
+        // the moment the game switches the body back on.
+        private bool SoftDespawned
+        {
+            get
+            {
+                UnityEngine.Collider[] colliders = ClickColliders;
+                if (colliders.Length == 0) return false;
+                foreach (UnityEngine.Collider c in colliders)
+                    if (c != null && c.enabled && c.gameObject.activeInHierarchy) return false;
+                foreach (UnityEngine.Renderer r in BodyRenderers)
+                    if (r != null && r.enabled && r.gameObject.activeInHierarchy) return false;
+                return true;
+            }
+        }
+
+        // The colliders the game's mouse picking hits this entity through, the same curated set the
+        // footprint measures (see ColliderFootprint).
+        private UnityEngine.Collider[] ClickColliders
+        {
+            get
+            {
+                if (_clickColliders == null)
+                {
+                    var found = new System.Collections.Generic.List<UnityEngine.Collider>();
+                    var highlights = _e.GetComponentsInChildren<MouseOverHighlight>(true);
+                    if (highlights != null)
+                        foreach (MouseOverHighlight h in highlights)
+                        {
+                            var colliders = h.m_collider;
+                            if (colliders == null) continue;
+                            foreach (UnityEngine.Collider c in colliders)
+                                if (c != null) found.Add(c);
+                        }
+                    _clickColliders = found.ToArray();
+                }
+                return _clickColliders;
+            }
+        }
+        private UnityEngine.Collider[] _clickColliders;
+
+        // The entity's solid body renderers (the same mesh/skinned filter the footprint fallback applies -
+        // a particle or outline effect is not a body and can stay lit on a despawned character).
+        private UnityEngine.Renderer[] BodyRenderers
+        {
+            get
+            {
+                if (_bodyRenderers == null)
+                {
+                    var found = new System.Collections.Generic.List<UnityEngine.Renderer>();
+                    var renderers = _e.GetComponentsInChildren<UnityEngine.Renderer>(true);
+                    if (renderers != null)
+                        foreach (UnityEngine.Renderer r in renderers)
+                            if (r != null && (r.TryCast<UnityEngine.MeshRenderer>() != null
+                                              || r.TryCast<UnityEngine.SkinnedMeshRenderer>() != null))
+                                found.Add(r);
+                    _bodyRenderers = found.ToArray();
+                }
+                return _bodyRenderers;
+            }
+        }
+        private UnityEngine.Renderer[] _bodyRenderers;
 
         // A door standing open, read live from the game's own door state - the same field its OnUse
         // toggles and its scene-load persistence restores, so it is exactly what a sighted player sees
