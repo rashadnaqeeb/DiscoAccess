@@ -266,6 +266,9 @@ namespace DiscoAccess.Core.UI.Nav
         internal static int MatchTier(string lowerName, string lowerPrefix, out int position)
         {
             position = -1;
+            // A label read from the game may be display-fixed Arabic (visual order, presentation
+            // forms); the typed prefix is logical keyboard input, so bring the label to logical first.
+            lowerName = RtlText.Unfix(lowerName);
             lowerName = TextUtil.RemoveDiacritics(lowerName);
             lowerPrefix = TextUtil.RemoveDiacritics(lowerPrefix);
             int prefixLen = lowerPrefix.Length;

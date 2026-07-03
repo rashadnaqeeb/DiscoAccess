@@ -36,7 +36,8 @@ namespace DiscoAccess.Module.World
 
         public OrbProxy(SenseOrb orb) { _orb = orb; }
 
-        public string Name => OrbNaming.Resolve(_orb.textOverride, MorselText(), _orb.conversation);
+        public string Name => OrbNaming.Resolve(_orb.textOverride, MorselText(), _orb.conversation,
+            RidesPlayer, GameLocalization.IsEnglish);
         public Vector3 Position => WorldConvert.ToSnv(_orb.transform.position);
 
         // The footprint is the body disc - the same click-target treatment an entity gets from its click
@@ -217,13 +218,48 @@ namespace DiscoAccess.Module.World
 
         // What to speak right after triggering. A simple orb floats its clue as a world label (SpawnFloatText)
         // that no dialogue screen or bark reader carries, and that float path cannot be Harmony-hooked (the
-        // method is inlined), so the mod voices the text itself here - GetText is exactly what the float shows.
-        // A dialogue orb opens its conversation, read by the dialogue screen, and a thought orb runs a splash,
-        // so both stay silent here to avoid a double-read. Spoken directly, so it is never subject to the
-        // ambient-dialogue setting: a triggered orb is a deliberate interaction, not background chatter.
+        // method is inlined), so the mod voices the text itself here, mirroring GetText's source order
+        // (textOverride, else the morsel field, else the conversation's Description) with the localized
+        // variant of each conversation field preferred - GetText reads the database's raw fields, which
+        // stay English in every language. A dialogue orb opens its conversation, read by the dialogue
+        // screen, and a thought orb runs a splash, so both stay silent here to avoid a double-read. Spoken
+        // directly, so it is never subject to the ambient-dialogue setting: a triggered orb is a deliberate
+        // interaction, not background chatter.
         public string PostInteractLine()
-            => (_orb.HasDialogue || _orb.orbType == OrbType.THOUGHT) ? null : TextFilter.Clean(_orb.GetText());
+        {
+            if (_orb.HasDialogue || _orb.orbType == OrbType.THOUGHT) return null;
+            string text = string.IsNullOrEmpty(_orb.textOverride) ? LocalizedOrbText() : null;
+            return TextFilter.Clean(text ?? _orb.GetText());
+        }
 
-        private string MorselText() => _orb.IsMorsel ? _orb.morselText : null;
+        private string MorselText()
+        {
+            if (!_orb.IsMorsel) return null;
+            return LocalizedOrbText() ?? _orb.morselText;
+        }
+
+        // The orb's clue text in the game's current language, or null to use the database's English
+        // field. The game keeps its non-English dialogue data as I2 terms keyed
+        // "Conversation/<Articy Id>/<Field>" (loaded only while a non-English language is active), so a
+        // missing term simply means English. Field order mirrors GetText: a morsel reads the morsel field
+        // (AlternateOrbText) with Description as its fallback - the order the game fills morselText - and
+        // a full orb reads Description alone. Fetched unfixed (logical order), the form speech needs.
+        private string LocalizedOrbText()
+        {
+            var conv = _orb.ConversationObject;
+            string articyId = conv != null ? Field.LookupValue(conv.fields, "Articy Id") : null;
+            if (string.IsNullOrEmpty(articyId)) return null;
+            if (_orb.IsMorsel)
+                return LocalizedConversationField(articyId, "AlternateOrbText")
+                       ?? LocalizedConversationField(articyId, "Description");
+            return LocalizedConversationField(articyId, "Description");
+        }
+
+        private static string LocalizedConversationField(string articyId, string field)
+        {
+            string term = "Conversation/" + articyId + "/" + field;
+            string s = LocalizationCustomSystem.LocalizationManager.GetLocalizedTerm(term, false, false);
+            return string.IsNullOrEmpty(s) || s == term ? null : s;
+        }
     }
 }

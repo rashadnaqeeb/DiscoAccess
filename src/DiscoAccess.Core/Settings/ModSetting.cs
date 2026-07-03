@@ -1,3 +1,5 @@
+using System;
+
 namespace DiscoAccess.Core.Settings
 {
     /// <summary>
@@ -11,13 +13,17 @@ namespace DiscoAccess.Core.Settings
         /// <summary>Stable persistence key (never spoken), e.g. "wall_tone_volume".</summary>
         public string Key { get; }
 
-        /// <summary>Authored, spoken label.</summary>
-        public string Label { get; }
+        private readonly Func<string> _label;
 
-        protected ModSetting(string key, string label)
+        /// <summary>Authored, spoken label, resolved at read time: the settings live in the host and
+        /// outlive both module reloads and a language switch, so a label captured at construction would
+        /// speak the startup language forever.</summary>
+        public string Label => _label();
+
+        protected ModSetting(string key, Func<string> label)
         {
             Key = key;
-            Label = label;
+            _label = label;
         }
     }
 }

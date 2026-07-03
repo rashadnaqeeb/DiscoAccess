@@ -63,6 +63,8 @@
       <_CursorCueAsset Include="$(RepoRoot)assets\audio\cursor\*.wav" />
       <!-- The per-category thing cue WAVs (sonar sweep + scanner review ping); resolved at assets/audio/interactables beside the plugin. -->
       <_ThingCueAsset Include="$(RepoRoot)assets\audio\interactables\*.wav" />
+      <!-- Authored-string translation files (en.txt is the translator template); resolved at lang beside the plugin. -->
+      <_LangFile Include="$(RepoRoot)lang\*.txt" />
     </ItemGroup>
     <MakeDir Directories="$(PluginDeployDir)" />
     <!-- Retries=0: when iterating with the game running, the host/Roslyn DLLs are locked; fail fast
@@ -80,6 +82,9 @@
           SkipUnchangedFiles="true" ContinueOnError="true" />
     <Copy SourceFiles="@(_ThingCueAsset)"
           DestinationFolder="$(PluginDeployDir)\assets\audio\interactables"
+          SkipUnchangedFiles="true" ContinueOnError="true" />
+    <Copy SourceFiles="@(_LangFile)"
+          DestinationFolder="$(PluginDeployDir)\lang"
           SkipUnchangedFiles="true" ContinueOnError="true" />
     <Message Importance="high" Text="DiscoAccess deployed -> $(PluginDeployDir)" />
   </Target>

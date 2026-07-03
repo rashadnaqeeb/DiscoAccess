@@ -43,7 +43,8 @@ namespace DiscoAccess.Core.World
     {
         public static string Resolve(string? rawName, string? authoredName, string? conversationTitle,
                                      bool isNamedCharacter, string category,
-                                     IReadOnlyCollection<string>? areaTokens = null)
+                                     IReadOnlyCollection<string>? areaTokens = null,
+                                     string? contentName = null)
         {
             string name = Normalize(rawName);
             string? authored = CleanAuthored(authoredName);
@@ -70,11 +71,11 @@ namespace DiscoAccess.Core.World
             if (category == WorldTaxonomy.Exit)
             {
                 string? typeKw = ExitTypeKeyword(name);
-                if (authored != null) return authored + " " + (typeKw ?? WorldThingExit);
+                if (authored != null) return ExitNamed(authored, typeKw ?? WorldThingExit);
                 string? fallback = AuthoredDoorFallback(name);
                 if (fallback != null) return fallback;
                 string? spot = SpotFromDoorName(name);
-                if (spot != null) return spot + " " + (typeKw ?? WorldThingDoor);
+                if (spot != null) return ExitNamed(spot, typeKw ?? WorldThingDoor);
                 return name.Length > 0 && !IsSlug(name) ? name : (typeKw ?? WorldThingExit);
             }
 
@@ -85,7 +86,7 @@ namespace DiscoAccess.Core.World
             // containers get this, so a prop that reads like one (the interactable trash can, a pile) keeps
             // the noun extractor below untouched.
             if (category == WorldTaxonomy.Container)
-                return ResolveContainer(name, areaTokens);
+                return ResolveContainer(name, areaTokens, contentName);
 
             // Props: the object noun from the name. For the slug clutter whose leading token is a location
             // ("Ice_eternite"), a spoiler-safe title reads better than the noun extractor's guess, so try it
@@ -141,14 +142,25 @@ namespace DiscoAccess.Core.World
         // two: a specific item (no generic type word) keeps its full flavor name, cleaned - a trailing
         // generic "container" tag dropped and a leading run of location tokens (the current area name, a
         // compass word) stripped, so "martinaise east photo of rene" reads "photo of rene" while "Leopard
-        // Suit" stays "leopard suit". Only the token alias ("buoya" to "buoy A") is authored.
-        private static string ResolveContainer(string name, IReadOnlyCollection<string>? areaTokens)
+        // Suit" stays "leopard suit". Tier one's spoken type word comes from the strings table, so it
+        // translates; a tier-two flavor name is dev-side English with no game string to reuse, so it does
+        // not. Only the token alias ("buoya" to "buoy A") is authored.
+        private static string ResolveContainer(string name, IReadOnlyCollection<string>? areaTokens,
+                                               string? contentName)
         {
             string[] tokens = Tokenize(name);
             if (tokens.Length == 0) return WorldThingContainer;
 
             string? typeWord = FindContainerType(tokens);
             if (typeWord != null) return typeWord;
+
+            // A flavor-named container IS its visible item (the trousers on the chair, the shoe on the
+            // floor), so when the caller resolved that single guaranteed item's display name - which it
+            // does only in a non-English game, where the dev name below is untranslatable English (see
+            // the module's ContentItemName for the policy) - that localized name speaks instead. Never
+            // for a type-word container (above): a generic box's contents are hidden until opened, and
+            // speaking them would tell a blind player what a sighted one cannot see.
+            if (!string.IsNullOrEmpty(contentName)) return contentName!;
 
             var flavor = new List<string>(tokens);
             if (flavor.Count > 1 && IsBucketWord(flavor[flavor.Count - 1]))
@@ -162,31 +174,44 @@ namespace DiscoAccess.Core.World
                 if (i > 0) sb.Append(' ');
                 sb.Append(AliasToken(flavor[i]));
             }
+            // The flavor name is English dev data with no game string in any language, so it speaks
+            // as-is; a non-English game substitutes the content item's localized name above instead.
             return sb.ToString();
         }
 
         // The generic container type named anywhere in the tokens, two-word types ("trash can") before the
         // single word they contain ("can"), else the first single-word type in reading order (so "FV money
-        // Shack" takes "money", not a later word). Null when the container is a specific item.
+        // Shack" takes "money", not a later word). Null when the container is a specific item. The match is
+        // on the language-invariant English token; the SPOKEN word comes from the strings table
+        // (Strings.ContainerWord), singular or plural to follow the dev name ("Jam Crates" reads "crates").
         private static string? FindContainerType(string[] tokens)
         {
             for (int i = 0; i + 1 < tokens.Length; i++)
-                if (tokens[i] == "trash" && tokens[i + 1] == "can") return "trash can";
+                if (tokens[i] == "trash" && tokens[i + 1] == "can") return ContainerWord("trash can", plural: false);
             foreach (string t in tokens)
-                if (IsContainerTypeWord(t)) return t;
+            {
+                string? singular = ContainerTypeSingular(t);
+                if (singular != null) return ContainerWord(singular, plural: singular != t);
+            }
             return null;
         }
 
-        // Whether a token is a generic container word, allowing a regular English plural so "crates"/"boxes"
-        // count as "crate"/"box"; the plural form is spoken back verbatim ("Jam Crates" reads "crates").
-        private static bool IsContainerTypeWord(string t)
+        // The canonical singular for a generic container token, allowing a regular English plural so
+        // "crates"/"boxes" count as "crate"/"box". Null when the token is no container word.
+        private static string? ContainerTypeSingular(string t)
         {
-            if (ContainerTypeWords.Contains(t)) return true;
-            if (t.Length > 4 && t.EndsWith("es", StringComparison.Ordinal)
-                && ContainerTypeWords.Contains(t.Substring(0, t.Length - 2))) return true; // boxes -> box
-            if (t.Length > 3 && t.EndsWith("s", StringComparison.Ordinal)
-                && ContainerTypeWords.Contains(t.Substring(0, t.Length - 1))) return true;  // crates -> crate
-            return false;
+            if (ContainerTypeWords.Contains(t)) return t;
+            if (t.Length > 4 && t.EndsWith("es", StringComparison.Ordinal))
+            {
+                string stem = t.Substring(0, t.Length - 2);           // boxes -> box
+                if (ContainerTypeWords.Contains(stem)) return stem;
+            }
+            if (t.Length > 3 && t.EndsWith("s", StringComparison.Ordinal))
+            {
+                string stem = t.Substring(0, t.Length - 1);           // crates -> crate
+                if (ContainerTypeWords.Contains(stem)) return stem;
+            }
+            return null;
         }
 
         // A leading token that is location scaffolding on a specific container's name: a compass word, a known
@@ -383,7 +408,7 @@ namespace DiscoAccess.Core.World
         {
             if (string.IsNullOrEmpty(areaId)) return null;
             Match f = Regex.Match(areaId!, @"-f(\d+)", RegexOptions.IgnoreCase);
-            if (f.Success) return WorldFloor + " " + int.Parse(f.Groups[1].Value, CultureInfo.InvariantCulture);
+            if (f.Success) return FloorNumber(f.Groups[1].Value);
             if (Regex.IsMatch(areaId!, @"-s\d+", RegexOptions.IgnoreCase)) return WorldBasement;
             return null;
         }

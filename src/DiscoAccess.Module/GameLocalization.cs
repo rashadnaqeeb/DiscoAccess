@@ -16,6 +16,18 @@ namespace DiscoAccess.Module
     /// </summary>
     public static class GameLocalization
     {
+        /// <summary>Whether the game is running in English, the language of its dev-side data (object
+        /// names, orb title clues) - the gate for speaking that data raw versus falling back to
+        /// localized sources. An unresolved language reads as English (the conservative default).</summary>
+        public static bool IsEnglish
+        {
+            get
+            {
+                string code = LocalizationManager.CurrentLanguageCode;
+                return string.IsNullOrEmpty(code) || code == "en";
+            }
+        }
+
         /// <summary>Resolve an I2 term to the current language, or null when the term is empty.</summary>
         public static string Translate(string term)
         {
@@ -27,11 +39,12 @@ namespace DiscoAccess.Module
         /// <summary>
         /// Resolve one of DE's own UI terms through its localization wrapper (the same call the game's
         /// tooltips make, so no category path is needed), falling back to the given authored word when the
-        /// term resolves to nothing or echoes its own name (a missing term).
+        /// term resolves to nothing or echoes its own name (a missing term). fixForRTL is off: the fix
+        /// shapes Arabic into visual order for the renderer, and speech needs the logical original.
         /// </summary>
         public static string Term(string term, string fallback)
         {
-            string s = LocalizationCustomSystem.LocalizationManager.GetLocalizedTerm(term, false, true);
+            string s = LocalizationCustomSystem.LocalizationManager.GetLocalizedTerm(term, false, false);
             return string.IsNullOrEmpty(s) || s == term ? fallback : s;
         }
 

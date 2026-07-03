@@ -7,22 +7,26 @@ namespace DiscoAccess.Core.World
     /// Resolves the spoken name for a sense orb from the raw fields a Module proxy extracts, so the naming is
     /// engine-free and unit-tested. An orb has no game-authored short label - a sighted player just sees a
     /// glowing dot and only learns what it is on triggering it - so the name is built from what the orb data
-    /// does carry, in priority: an explicit text override, then a morsel teaser, else the orb conversation's
-    /// slug title reduced to its clue. The clue leads and the type word "orb" follows ("crack orb", "halogen
-    /// watermarks orb"), distinguishing word first, so the reader hears the varying part first and the word
-    /// "orb" tells it apart from a container or a person. The slug's "&lt;area&gt; ORB / " scaffolding is
-    /// stripped; a title with no clue left falls back to the bare type word.
+    /// does carry, in priority: an explicit text override, then a morsel teaser (which the proxy localizes),
+    /// else the orb conversation's slug title reduced to its clue. The clue leads and the type word "orb"
+    /// follows ("crack orb"), distinguishing word first. The clue is English dev data, so it speaks only
+    /// where it can be understood: as-is in an English game, else the bare localized type word - a
+    /// translatable word beats an untranslatable clue. A
+    /// thought-cabinet orb riding the character never speaks its title at all: that is meta text ("THOUGHT /
+    /// SORRY COP") naming a thought the player has not gained, so it reads as the thought-orb type word.
     /// </summary>
     public static class OrbNaming
     {
-        public static string Resolve(string? textOverride, string? morselText, string? conversationTitle)
+        public static string Resolve(string? textOverride, string? morselText, string? conversationTitle,
+                                     bool ridesPlayer = false, bool englishClues = true)
         {
             string? over = Clean(textOverride);
             if (over != null) return over;
             string? morsel = Clean(morselText);
             if (morsel != null) return morsel;
+            if (ridesPlayer) return WorldThingThoughtOrb;
             string? clue = Clue(conversationTitle);
-            return clue != null ? clue + " " + WorldThingOrb : WorldThingOrb;
+            return clue != null && englishClues ? OrbNamed(clue) : WorldThingOrb;
         }
 
         // The clue in an orb conversation's slug title: strip the leading "<area> ORB / " (or a bare "ORB ")

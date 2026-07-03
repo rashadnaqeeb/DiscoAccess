@@ -60,33 +60,35 @@ namespace DiscoAccess.Core.Settings
 
         public ModSettings(ISettingsStore store)
         {
+            // Labels are providers, not captured strings: the settings outlive module reloads and a
+            // language switch, so each label resolves through the strings table at speak time.
             AutoReadDialogue = Add(new ToggleSetting(
-                "auto_read_dialogue", SettingAutoReadDialogue, defaultValue: true, store));
+                "auto_read_dialogue", () => SettingAutoReadDialogue, defaultValue: true, store));
             ReadAmbientDialogue = Add(new ToggleSetting(
-                "read_ambient_dialogue", SettingReadAmbientDialogue, defaultValue: true, store));
+                "read_ambient_dialogue", () => SettingReadAmbientDialogue, defaultValue: true, store));
             WallToneVolume = Add(new RangeSetting(
-                "wall_tone_volume", SettingWallToneVolume, defaultValue: 5, step: 5, store));
+                "wall_tone_volume", () => SettingWallToneVolume, defaultValue: 5, step: 5, store));
             WallTonesContinuous = Add(new ToggleSetting(
-                "wall_tones_continuous", SettingWallTonesContinuous, defaultValue: false, store));
+                "wall_tones_continuous", () => SettingWallTonesContinuous, defaultValue: false, store));
             SonarVolume = Add(new RangeSetting(
-                "sonar_volume", SettingSonarVolume, defaultValue: 70, step: 5, store));
+                "sonar_volume", () => SettingSonarVolume, defaultValue: 70, step: 5, store));
             SonarContinuous = Add(new ToggleSetting(
-                "sonar_continuous", SettingSonarContinuous, defaultValue: false, store));
+                "sonar_continuous", () => SettingSonarContinuous, defaultValue: false, store));
             SonarRest = Add(new RangeSetting(
-                "sonar_rest", SettingSonarRest, defaultValue: 400, step: 50, min: 0, max: 1500,
+                "sonar_rest", () => SettingSonarRest, defaultValue: 400, step: 50, min: 0, max: 1500,
                 RangeUnit.Milliseconds, store));
             SonarNpcs = Add(new ToggleSetting(
-                "sonar_npc", SettingSonarNpcs, defaultValue: true, store));
+                "sonar_npc", () => SettingSonarNpcs, defaultValue: true, store));
             SonarInteractables = Add(new ToggleSetting(
-                "sonar_interactable", SettingSonarInteractables, defaultValue: true, store));
+                "sonar_interactable", () => SettingSonarInteractables, defaultValue: true, store));
             SonarContainers = Add(new ToggleSetting(
-                "sonar_container", SettingSonarContainers, defaultValue: true, store));
+                "sonar_container", () => SettingSonarContainers, defaultValue: true, store));
             SonarOrbs = Add(new ToggleSetting(
-                "sonar_orb", SettingSonarOrbs, defaultValue: true, store));
+                "sonar_orb", () => SettingSonarOrbs, defaultValue: true, store));
             SonarExits = Add(new ToggleSetting(
-                "sonar_exit", SettingSonarExits, defaultValue: true, store));
+                "sonar_exit", () => SettingSonarExits, defaultValue: true, store));
             RunToDestinations = Add(new ToggleSetting(
-                "run_to_destinations", SettingRunToDestinations, defaultValue: false, store));
+                "run_to_destinations", () => SettingRunToDestinations, defaultValue: false, store));
         }
 
         /// <summary>Whether the sonar should sound the given <see cref="World.WorldTaxonomy.Scan"/> browse

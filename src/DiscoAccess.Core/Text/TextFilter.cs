@@ -22,6 +22,11 @@ namespace DiscoAccess.Core.Text
         // an ellipsis (a run of identical dots) is never touched.
         private static readonly Regex PeriodThenComma = new Regex("\\.\\s*,", RegexOptions.Compiled);
         private static readonly Regex CommaThenPeriod = new Regex(",\\s*\\.", RegexOptions.Compiled);
+        // Unicode bidi control characters (LRM/RLM/ALM, the embedding/override pairs, the isolates).
+        // They shape visual text direction, which speech has none of, and a synthesizer fed one may
+        // announce or garble it; RTL text (an Arabic fan translation) carries them routinely.
+        private static readonly Regex BidiControls =
+            new Regex("[\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069]", RegexOptions.Compiled);
 
         public static string Clean(string? raw)
         {
@@ -35,6 +40,11 @@ namespace DiscoAccess.Core.Text
             s = s.Replace("▼", string.Empty);  // the same arrow decoration standing alone
             s = s.Replace(' ', ' ');   // non-breaking space
             s = s.Replace('​', ' ');   // zero-width space TMP sometimes injects
+            s = BidiControls.Replace(s, string.Empty);
+            // Arabic the game pre-shaped for display comes back to logical order for the synthesizer.
+            // After the tag strip (tags sit in the fixed string unreversed, so they must go first) and
+            // the bidi-control strip (stray marks would sit inside the reversal).
+            s = RtlText.Unfix(s);
             s = FoldPunctuation(s);
             s = s.Trim();
             // A line break in multi-line game text (e.g. an options tooltip listing modes on separate

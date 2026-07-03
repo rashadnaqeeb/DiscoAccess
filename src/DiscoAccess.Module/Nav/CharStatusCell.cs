@@ -25,7 +25,7 @@ namespace DiscoAccess.Module.Nav
             if (!string.IsNullOrEmpty(xp))
                 parts.Add(xp);
 
-            parts.Add(SkillPointsAvailable() + " " + Strings.StatusSkillPoints);
+            parts.Add(Strings.SkillPoints(SkillPointsAvailable()));
 
             return string.Join(", ", parts);
         }

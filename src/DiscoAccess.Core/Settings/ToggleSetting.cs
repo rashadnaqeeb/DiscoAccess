@@ -14,7 +14,7 @@ namespace DiscoAccess.Core.Settings
 
         public bool Value { get; private set; }
 
-        public ToggleSetting(string key, string label, bool defaultValue, ISettingsStore store)
+        public ToggleSetting(string key, System.Func<string> label, bool defaultValue, ISettingsStore store)
             : base(key, label)
         {
             DefaultValue = defaultValue;

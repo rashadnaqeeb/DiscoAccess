@@ -3,6 +3,7 @@ using FortressOccident;
 using LocalizationCustomSystem;
 using PixelCrushers.DialogueSystem;
 using Sunshine;
+using Sunshine.Metric;
 using Vector3 = System.Numerics.Vector3;
 
 namespace DiscoAccess.Module.World
@@ -37,10 +38,31 @@ namespace DiscoAccess.Module.World
 
         // The spoken name, composed by Core from the raw fields plus the game's authored display name for this
         // thing (see AuthoredName): the destination area for an exit, else the actor that voices its examine
-        // description. Core combines it with GameObject.name fallbacks. A Character is treated as a named thing
-        // so a title is never spoken in its place.
+        // description. Core combines it with GameObject.name fallbacks (and, for a flavor-named container,
+        // the localized name of its single visible item - see ContentItemName). A Character is treated as a
+        // named thing so a title is never spoken in its place.
         public string Name => EntityNaming.Resolve(_e.name, AuthoredName(), _e.conversation,
-            _e.TryCast<Character>() != null, Category, SceneAreaTokens());
+            _e.TryCast<Character>() != null, Category, SceneAreaTokens(), ContentItemName());
+
+        // The localized display name of a container's single guaranteed item, or null. Core speaks it only
+        // for a flavor-named container - the loot lying visibly in the world (the trousers on the chair) -
+        // and only in a NON-ENGLISH game: there the dev name is untranslatable English, and the item's
+        // localized name is the game's own text for what a sighted player is looking at. In English the
+        // dev names stay - they are often the better speech ("piles of tape" over the specific tape's
+        // formal title, which also names the find a beat early). A generic box's contents stay unspoken
+        // everywhere. The name resolves through the item's I2 term unfixed (logical order for speech),
+        // falling back to the display name the game composed. Read live per call, never cached.
+        private string ContentItemName()
+        {
+            if (GameLocalization.IsEnglish) return null;
+            var source = _e.TryCast<ContainerSource>();
+            var items = source?.containedItems;
+            if (items == null || items.Count != 1 || items[0].probability < 1) return null;
+            InventoryItem item = InventoryItemList.Singleton?.GetByName(items[0].name);
+            if (item == null) return null;
+            string term = item.displayNameTerm;
+            return string.IsNullOrEmpty(term) ? item.GetDisplayName() : GameLocalization.Term(term, item.GetDisplayName());
+        }
         public Vector3 Position => WorldConvert.ToSnv(_e.transform.position);
 
         // The real footprint: a Box on the XZ plane sized to the entity's click colliders (or, failing those,
@@ -155,9 +177,9 @@ namespace DiscoAccess.Module.World
             // A door onto the main exterior whose own name is a specific spot ("Balcony") should be named for
             // that spot, not the coarse "Martinaise": yield to the door name (Core turns it into "balcony door").
             if (area.Contains("-ext") && EntityNaming.SpotFromDoorName(_e.name) != null) return null;
-            string destName = I2.Loc.LocalizationManager.GetTranslation("Area Names/" + area);
+            string destName = GameLocalization.Translate("Area Names/" + area);
             string curArea = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
-            string curName = I2.Loc.LocalizationManager.GetTranslation("Area Names/" + curArea);
+            string curName = GameLocalization.Translate("Area Names/" + curArea);
             return EntityNaming.ExitDestinationLabel(area, destName, curName);
         }
 

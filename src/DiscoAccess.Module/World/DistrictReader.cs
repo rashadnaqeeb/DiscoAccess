@@ -122,7 +122,7 @@ namespace DiscoAccess.Module.World
         // Rags"), plus the floor word for a numbered interior level so stacked scenes are distinguishable.
         private static string MapName(string sceneName)
         {
-            string localized = I2.Loc.LocalizationManager.GetTranslation("Area Names/" + sceneName);
+            string localized = GameLocalization.Translate("Area Names/" + sceneName);
             string map = (string.IsNullOrEmpty(localized) ? sceneName : localized).Replace('-', ' ');
             string floor = FloorLabel(sceneName);
             return floor == null ? map : map + " " + floor;
@@ -137,7 +137,7 @@ namespace DiscoAccess.Module.World
                 if (tok.Length < 2) continue;
                 string digits = tok.Substring(1);
                 if (!IsDigits(digits)) continue;
-                if (tok[0] == 'f') return Strings.WorldFloor + " " + digits;
+                if (tok[0] == 'f') return Strings.FloorNumber(digits);
                 if (tok[0] == 's') return Strings.WorldBasement;
             }
             return null;

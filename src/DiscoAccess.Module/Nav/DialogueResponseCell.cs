@@ -98,7 +98,7 @@ namespace DiscoAccess.Module.Nav
             // unearned modifiers, so a locked check with nothing met reads no modifier list at all.
             var mods = check.applicableTargetModifiers;
 
-            head += ", " + Strings.CheckSkillLevel + " " + check.SkillValue();
+            head += ", " + Strings.CheckSkillLevelOf(check.SkillValue());
 
             var parts = new List<string> { head };
             if (mods != null && mods.Count > 0)

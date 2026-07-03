@@ -240,7 +240,19 @@ below.)
   none).
 - **No inline user-facing string literals.** Every word the mod itself authors and speaks must come
   from the mod's central strings table in Core (`DiscoAccess.Core.Strings.Strings`), never an inline
-  literal, so the authored set can be translated later. Punctuation and log/debug text are exempt.
+  literal. Punctuation and log/debug text are exempt. The table is runtime-translatable: each string
+  is a key with an English default, and a `lang/<language>.txt` file (loaded by the module's
+  `LanguageSync`, which follows the game language) overrides values per key, missing keys falling back
+  to English. Word order lives in `{0}`-style templates and plurals in `|`-separated forms picked by
+  the file's `_plural` rule - so never concatenate English grammar around a value in code; add a
+  template or plural key instead. `lang/en.txt` is the generated translator template; a test pins it
+  to `Strings.DumpTemplate()` (on failure, regenerate by writing that string to the file). Names
+  rebuilt from English dev data (container flavor names, prop nouns, orb clues) do not translate: in
+  a non-English game they fall back to the game's own localized text (a flavor container's single
+  item's name) or a generic type word. Spoken game text is un-RTL-fixed automatically
+  (`RtlText`, in `TextFilter.Clean`): the game returns Arabic pre-shaped in visual order for the
+  renderer, which a synthesizer cannot speak - so never fetch game strings with fixForRTL on
+  (see `GameLocalization.Translate`/`Term`).
 
 **Announcements (mod-authored text only — never reword game text).** Users are expert screen-reader
 users; strip fluff, never information.

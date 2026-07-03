@@ -40,12 +40,12 @@ namespace DiscoAccess.Core.Settings
             : throw new InvalidOperationException("Fraction is meaningless for a " + Unit + " range");
 
         /// <summary>A 0..100 percent setting (a volume).</summary>
-        public RangeSetting(string key, string label, int defaultValue, int step, ISettingsStore store)
+        public RangeSetting(string key, Func<string> label, int defaultValue, int step, ISettingsStore store)
             : this(key, label, defaultValue, step, min: 0, max: 100, RangeUnit.Percent, store)
         {
         }
 
-        public RangeSetting(string key, string label, int defaultValue, int step, int min, int max,
+        public RangeSetting(string key, Func<string> label, int defaultValue, int step, int min, int max,
                             RangeUnit unit, ISettingsStore store)
             : base(key, label)
         {

@@ -59,6 +59,9 @@ namespace DiscoAccess.Module
         // Speaks authored descriptions of the game's silent cinematic scenes (the new-game wake-up) via a
         // Harmony feeder drained from the pump. Owns no native handle; its patch rides _harmony.
         private CutsceneReader _cutscenes;
+        // Keeps the mod's authored strings in the game's language (loads a lang/<language>.txt into
+        // Core's Translation table, English when none). Owns no native handle.
+        private LanguageSync _language;
         private static readonly InputCategory[] UiCategory = { InputCategory.UI };
         // Status precedes UI ON PURPOSE: in a screen that wants the status keys (dialogue) the heal arrows
         // (Status, Left/Right) shadow the inert UI Left/Right; the rest of UI (Up/Down/Tab/Enter/Escape/
@@ -84,6 +87,10 @@ namespace DiscoAccess.Module
             // module's teardown stripped the fresh load's patches, silently killing every Harmony feature
             // (notifications, barks) until the next full restart.
             _harmony = new Harmony("com.rashad.discoaccess.module." + System.Guid.NewGuid().ToString("N"));
+
+            // Match the mod's authored strings to the game language before anything captures or speaks
+            // one (the input registrations below take their descriptions from the table).
+            _language = new LanguageSync(_host);
 
             // Stand up the keyboard input substrate and our UI navigation.
             _input = new InputManager();
@@ -241,6 +248,10 @@ namespace DiscoAccess.Module
 
         public void Tick()
         {
+            // Follow a game-language change (options menu or the Ctrl+L cycle) before anything speaks,
+            // so this frame's announcements already use the right table.
+            _language.Tick();
+
             // A rename cell entered edit mode last frame and parked its field here; focus it now, a frame
             // after the activating Enter, so the field does not consume that Enter and commit immediately.
             // Done before the editing check so the freshly focused field suppresses us this same frame.
@@ -380,6 +391,11 @@ namespace DiscoAccess.Module
             _doors = null;
             _quotes = null;
             _loadingTips = null;
+            _cutscenes = null;
+            // The Translation table is deliberately NOT reset here: on a hot-reload the new module has
+            // already loaded its own table, and a reset from the old module's teardown would wipe it
+            // (the same trap as a fixed Harmony id).
+            _language = null;
             _host = null;
         }
     }

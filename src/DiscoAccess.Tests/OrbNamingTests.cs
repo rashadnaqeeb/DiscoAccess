@@ -51,5 +51,23 @@ namespace DiscoAccess.Tests
             Assert.Equal("orb", OrbNaming.Resolve(null, null, "  "));
             Assert.Equal("orb", OrbNaming.Resolve(null, null, "PLAZA ORB / "));
         }
+
+        [Fact]
+        public void RidesPlayer_SpeaksTheThoughtOrbWord_NeverTheTitle()
+        {
+            // A thought-cabinet orb's title is meta text that would also name the thought before the
+            // player gains it, so only the type word speaks - in every language.
+            Assert.Equal("thought orb",
+                OrbNaming.Resolve(null, null, "THOUGHT / SORRY COP", ridesPlayer: true));
+        }
+
+        [Fact]
+        public void TranslatedGame_DropsTheEnglishClue_ForTheBareOrbWord()
+        {
+            // The clue is English dev data: where the game speaks another language, an untranslated
+            // clue gives way to the (translatable) type word.
+            Assert.Equal("orb",
+                OrbNaming.Resolve(null, null, "PLAZA ORB / crack", englishClues: false));
+        }
     }
 }
