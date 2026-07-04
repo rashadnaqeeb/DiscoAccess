@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using DiscoAccess.Core.Modularity;
 using DiscoAccess.Core.Text;
 using DiscoAccess.Core.UI.Nav;
+using DiscoAccess.Module.Input; // DialogueChoiceInput
 using PixelCrushers.DialogueSystem; // ConversationState, Response, Subtitle
 using Sunshine.Views;
 using ConversationLogger = Sunshine.ConversationLogger;
@@ -40,6 +41,10 @@ namespace DiscoAccess.Module.Nav
         private Container _root;
         private Container _flow;
         private UIElement _landing;
+        // The numbered choices at the foot of the flow, in on-screen order: the player responses, or the
+        // lone continue when it is the only way forward (the two are mutually exclusive - DE disables the
+        // continue while a response menu is up). Rebuilt with the flow; drives the number-row jump.
+        private readonly List<UIElement> _choices = new List<UIElement>();
         private string _builtSig;
         // Held so the response cells' select action can route through the game's button click and log a miss.
         private IModHost _host;
@@ -112,6 +117,15 @@ namespace DiscoAccess.Module.Nav
                 else
                     nav.EnsureFocusValid();
             }
+
+            // Number-row jump: press N to move the cursor straight to the Nth choice (a response, or the
+            // continue when it is the only way forward), read like any move. Reachable from anywhere in the
+            // flow, so a choice is one keypress away without arrowing past the transcript. A number past the
+            // choice count does nothing - silence, as asked.
+            int digit = DialogueChoiceInput.PressedChoiceDigit();
+            if (digit >= 1 && digit <= _choices.Count && _choices[digit - 1].CanFocus)
+                nav.Focus(_choices[digit - 1], announce: true);
+
             return false;
         }
 
@@ -122,6 +136,7 @@ namespace DiscoAccess.Module.Nav
         {
             _flow.Clear();
             _landing = null;
+            _choices.Clear();
 
             ConversationLogger logger = DialogueAdapter.Logger();
             List<LogEntry> entries = DialogueAdapter.TranscriptEntries();
@@ -153,14 +168,20 @@ namespace DiscoAccess.Module.Nav
                 Response r = responses[i];
                 var cell = new DialogueResponseCell(logger, r, i + 1, () => DialogueAdapter.SelectResponse(r, _host));
                 _flow.Add(cell);
+                _choices.Add(cell);
                 if (firstResponse == null && cell.CanFocus)
                     firstResponse = cell;
             }
 
             // With no choices but an available continue, offer it as a navigable button below the current
             // line (Down to reach it) so advancing the conversation is discoverable, not just a hidden Enter.
+            // It is choice 1 for the number-row jump in this continue-only state.
             if (responseCount == 0 && DialogueAdapter.ContinueAvailable())
-                _flow.Add(new DialogueContinueCell(DialogueAdapter.ContinueAvailable, DialogueAdapter.Continue));
+            {
+                var continueCell = new DialogueContinueCell(DialogueAdapter.ContinueAvailable, DialogueAdapter.Continue);
+                _flow.Add(continueCell);
+                _choices.Add(continueCell);
+            }
 
             _landing = (UIElement)current ?? firstResponse;
             if (_landing != null)
