@@ -544,8 +544,6 @@ namespace DiscoAccess.Core.Strings
             D("WorldBarFull", "{0} full"),
             D("WorldNoBarHeal", "no {0} items"),
             // Use-held-item feedback: the item in that hand was used, or the hand carries nothing.
-            D("WorldUsedLeftHand", "used left hand item"),
-            D("WorldUsedRightHand", "used right hand item"),
             D("WorldLeftHandEmpty", "left hand empty"),
             D("WorldRightHandEmpty", "right hand empty"),
             // Quick-load beginning / quick-save slot not created yet.
@@ -1139,8 +1137,6 @@ namespace DiscoAccess.Core.Strings
         // feedback is composed around the game's bar name (Health/Morale) so it localizes. ----
         public static string WorldBarFull(string barName) => F("WorldBarFull", barName);
         public static string WorldNoBarHeal(string barName) => F("WorldNoBarHeal", barName);
-        public static string WorldUsedLeftHand => T("WorldUsedLeftHand");
-        public static string WorldUsedRightHand => T("WorldUsedRightHand");
         public static string WorldLeftHandEmpty => T("WorldLeftHandEmpty");
         public static string WorldRightHandEmpty => T("WorldRightHandEmpty");
         public static string WorldQuickLoading => T("WorldQuickLoading");

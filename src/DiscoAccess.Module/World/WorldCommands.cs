@@ -103,17 +103,19 @@ namespace DiscoAccess.Module.World
 
         // Use the item held in a hand by clicking its HUD held-item button, the same call the controller stick
         // clicks make (left stick = left hand, right stick = right hand): the button's own click runs the real
-        // substance-use (or equips the orb). Empty hand reads as such rather than a misleading "used".
+        // substance-use (which raises the game's substance notification NotificationReader speaks) or starts
+        // the held orb's conversation. No success line of our own: the click is a no-op for a substance still
+        // on cooldown or an item that is neither, so a spoken "used" would lie; the game's own feedback carries
+        // a real use. An empty hand still reads as such, since nothing else would say so.
         public void UseLeftHand()
-            => UseHand(EquipmentSlotType.HELDLEFT, HudHeldPanelController.Current.leftHandHeldButton, Strings.WorldUsedLeftHand, Strings.WorldLeftHandEmpty);
+            => UseHand(EquipmentSlotType.HELDLEFT, HudHeldPanelController.Current.leftHandHeldButton, Strings.WorldLeftHandEmpty);
         public void UseRightHand()
-            => UseHand(EquipmentSlotType.HELDRIGHT, HudHeldPanelController.Current.rightHandHeldButton, Strings.WorldUsedRightHand, Strings.WorldRightHandEmpty);
+            => UseHand(EquipmentSlotType.HELDRIGHT, HudHeldPanelController.Current.rightHandHeldButton, Strings.WorldRightHandEmpty);
 
-        private void UseHand(EquipmentSlotType slot, HudHeldButton button, string used, string empty)
+        private void UseHand(EquipmentSlotType slot, HudHeldButton button, string empty)
         {
             if (InventoryViewData.Singleton.GetItemInSlot(slot) == null) { _host.Speech.Speak(empty, interrupt: true); return; }
             button.OnHeldButtonClicked();
-            _host.Speech.Speak(used, interrupt: true);
         }
 
         // Global keys, so both can fire anywhere - a menu, a conversation, even the title screen, where
