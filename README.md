@@ -40,7 +40,7 @@ I will eventually add bookmarks to the big city map.
 
 Cursor keys: WASD moves the cursor, Enter interacts with whatever it's on, Backspace walks to the cursor without interacting, C recenters the cursor on your character, Space stops walking. I interacts with the thing the scanner last read.
 
-Status keys: M for money, H for health, T for time, R for the map you're on (also announced automatically when it changes).
+Status keys: M for money, H for health, T for time, R for the map you're on (also announced automatically when it changes), X for experience and skill points.
 
 Game keys: Ctrl+C character sheet, Ctrl+I inventory, Ctrl+T thoughts, Ctrl+J journal, F1 game help. Left arrow heals health, right arrow heals morale. 1 and 2 use the items in your left and right hands. F5 quicksaves, F8 quickloads. Escape opens the pause menu. Ctrl+L cycles the game language.
 

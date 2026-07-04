@@ -61,6 +61,22 @@ namespace DiscoAccess.Module.World
                 pools.GetHealingChargetsForSkill(SkillType.VOLITION)), interrupt: true);
         }
 
+        // The leveling readout, composed from the live player-character model rather than the character
+        // sheet's XP panel (which is only up when that screen is open, and reads a tweened value mid
+        // level-up). XpAmount is the experience earned into the current level; GetCostForLevel is that
+        // level's requirement, together the game's own "51/100"; SkillPoints is the unspent pool. The
+        // "Experience" word reuses the game's own THC_TOOLTIP_EXP term the XP panel labels itself with.
+        public void ReadExperience()
+        {
+            var pc = PlayerCharacter.Singleton;
+            _host.Speech.Speak(Strings.WorldExperience(
+                GameLocalization.Term(ExperienceTerm, Strings.WorldExperienceLabel),
+                pc.XpAmount, LevelingUtils.GetCostForLevel(pc.Level), pc.SkillPoints), interrupt: true);
+        }
+
+        // The game's tooltip term for the "Experience" word (the XP panel's own label source).
+        private const string ExperienceTerm = "THC_TOOLTIP_EXP";
+
         // ---- Quick-actions ----
 
         // Heal a bar by clicking its HUD healing button, the same call the controller dpad makes (left heals

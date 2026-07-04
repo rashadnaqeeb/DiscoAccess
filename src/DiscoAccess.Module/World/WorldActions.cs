@@ -53,5 +53,6 @@ namespace DiscoAccess.Module.World
         public const string ReadMoney = "world.read.money";
         public const string ReadHealth = "world.read.health";
         public const string ReadLocation = "world.read.location";
+        public const string ReadExperience = "world.read.experience";
     }
 }

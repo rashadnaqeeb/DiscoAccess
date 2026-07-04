@@ -95,6 +95,7 @@ namespace DiscoAccess.Core.Strings
             D("InputWorldReadMoney", "Read money"),
             D("InputWorldReadHealth", "Read health"),
             D("InputWorldReadLocation", "Read location"),
+            D("InputWorldReadExperience", "Read experience"),
 
             // Control role and status words.
             // Nouns naming a control's type, spoken after its caption ("Continue, button").
@@ -537,6 +538,11 @@ namespace DiscoAccess.Core.Strings
             // The two damage bars in one line: {0}/{4} = the game's localized bar names (Health,
             // Morale), {1}-{2}/{5}-{6} = current/maximum numbers, {3}/{7} = the HealCharges phrases.
             D("WorldHealth", "{0} {1}/{2}, {3}; {4} {5}/{6}, {7}"),
+            // The leveling readout: {0} = the game's localized "Experience" word, {1}/{2} =
+            // XP into the current level over the level's cost, {3} = the SkillPoints phrase.
+            D("WorldExperience", "{0}: {1}/{2}, {3}"),
+            // Fallback for the game's THC_TOOLTIP_EXP term, used only if it fails to resolve.
+            D("WorldExperienceLabel", "experience"),
             // Healing items assigned and ready to use on a bar; {0} = the count.
             D("HealCharges", "{0} healing charge|{0} healing charges"),
             // Heal-key feedback; {0} = the game's localized bar name (I2 HEALTH / MORALE value), so
@@ -710,6 +716,7 @@ namespace DiscoAccess.Core.Strings
         public static string InputWorldReadMoney => T("InputWorldReadMoney");
         public static string InputWorldReadHealth => T("InputWorldReadHealth");
         public static string InputWorldReadLocation => T("InputWorldReadLocation");
+        public static string InputWorldReadExperience => T("InputWorldReadExperience");
 
         // Control role words, spoken after a control's label so the user knows what it is.
         public static string RoleButton => T("RoleButton");
@@ -1132,6 +1139,15 @@ namespace DiscoAccess.Core.Strings
 
         /// <summary>A count of assigned healing charges, singular/plural.</summary>
         public static string HealCharges(int count) => P("HealCharges", count);
+
+        /// <summary>The leveling readout: the game's "Experience" word, XP into the current level over
+        /// the level's cost, and the pool of unspent skill points. The experience word is passed in from
+        /// the game so it localizes; the numbers come from the live player-character model.</summary>
+        public static string WorldExperience(string experienceLabel, int current, int cost, int skillPoints)
+            => F("WorldExperience", experienceLabel, current, cost, SkillPoints(skillPoints));
+
+        /// <summary>Authored fallback for the game's Experience term, used only if it fails to resolve.</summary>
+        public static string WorldExperienceLabel => T("WorldExperienceLabel");
 
         // ---- World quick-action feedback (mod-authored; the game speaks none of these). The heal
         // feedback is composed around the game's bar name (Health/Morale) so it localizes. ----
