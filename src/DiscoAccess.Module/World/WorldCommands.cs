@@ -54,10 +54,10 @@ namespace DiscoAccess.Module.World
             var pools = PlayerCharacter.Singleton.healingPools;
             _host.Speech.Speak(Strings.WorldHealth(
                 GameLocalization.Translate(HealthTerm),
-                you.endurance.maximumValue - you.endurance.damageValue, you.endurance.maximumValue,
+                you.endurance.value, you.endurance.maximumValue,
                 pools.GetHealingChargetsForSkill(SkillType.ENDURANCE),
                 GameLocalization.Translate(MoraleTerm),
-                you.volition.maximumValue - you.volition.damageValue, you.volition.maximumValue,
+                you.volition.value, you.volition.maximumValue,
                 pools.GetHealingChargetsForSkill(SkillType.VOLITION)), interrupt: true);
         }
 
@@ -66,15 +66,15 @@ namespace DiscoAccess.Module.World
         // Use a healing charge on a bar (matching the controller dpad: left heals Health, right heals Morale).
         // Refuses when no charge is assigned, and when the bar is already full (so a charge is never wasted),
         // each with spoken feedback named by the game's own bar term.
-        public void HealEndurance() => Heal(SkillType.ENDURANCE, HealthTerm, BarDamage(SkillType.ENDURANCE));
-        public void HealVolition() => Heal(SkillType.VOLITION, MoraleTerm, BarDamage(SkillType.VOLITION));
+        public void HealEndurance() => Heal(SkillType.ENDURANCE, HealthTerm);
+        public void HealVolition() => Heal(SkillType.VOLITION, MoraleTerm);
 
-        private void Heal(SkillType skill, string barTerm, int damage)
+        private void Heal(SkillType skill, string barTerm)
         {
             string bar = GameLocalization.Translate(barTerm);
             var pools = PlayerCharacter.Singleton.healingPools;
             if (pools.GetHealingChargetsForSkill(skill) <= 0) { _host.Speech.Speak(Strings.WorldNoBarHeal(bar), interrupt: true); return; }
-            if (damage <= 0) { _host.Speech.Speak(Strings.WorldBarFull(bar), interrupt: true); return; }
+            if (!BarHasDamage(skill)) { _host.Speech.Speak(Strings.WorldBarFull(bar), interrupt: true); return; }
             pools.UseHealingCharge(skill);
             _host.Speech.Speak(Strings.WorldBarHealed(bar), interrupt: true);
         }
@@ -83,10 +83,13 @@ namespace DiscoAccess.Module.World
         private const string HealthTerm = "HEALTH";
         private const string MoraleTerm = "MORALE";
 
-        private static int BarDamage(SkillType skill)
+        // A bar carries damage the player can heal when its damageValue is NEGATIVE (the current value is
+        // maximumValue + damageValue); a zero means the bar is full. This is the game's own gate for the
+        // heal button (Sunshine.Dialogue CharacterLuaFunctions.HasEnduranceDamage/HasVolitionDamage).
+        private static bool BarHasDamage(SkillType skill)
         {
             var you = global::World.Singleton.you;
-            return skill == SkillType.ENDURANCE ? you.endurance.damageValue : you.volition.damageValue;
+            return (skill == SkillType.ENDURANCE ? you.endurance : you.volition).damageValue < 0;
         }
 
         // Use the item equipped to a hand. Empty hand reads as such rather than a misleading "used".
