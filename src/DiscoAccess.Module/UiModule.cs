@@ -186,7 +186,7 @@ namespace DiscoAccess.Module
             _input.Register(WorldActions.OpenCharacterSheet, Strings.InputWorldCharacterSheet, InputCategory.World, () => _commands.OpenCharacterSheet()).AddBinding(new KeyboardBinding(KeyCode.C, ctrl: true));
             _input.Register(WorldActions.OpenJournal, Strings.InputWorldJournal, InputCategory.World, () => _commands.OpenJournal()).AddBinding(new KeyboardBinding(KeyCode.J, ctrl: true));
             _input.Register(WorldActions.OpenThoughtCabinet, Strings.InputWorldThoughtCabinet, InputCategory.World, () => _commands.OpenThoughtCabinet()).AddBinding(new KeyboardBinding(KeyCode.T, ctrl: true));
-            _input.Register(WorldActions.Pause, Strings.InputWorldPause, InputCategory.World, () => _commands.OpenPauseMenu()).AddBinding(new KeyboardBinding(KeyCode.Escape));
+            _input.Register(WorldActions.Pause, Strings.InputWorldPause, InputCategory.World, () => _commands.Escape()).AddBinding(new KeyboardBinding(KeyCode.Escape));
             _input.Register(WorldActions.Help, Strings.InputWorldHelp, InputCategory.World, () => _commands.OpenHelp()).AddBinding(new KeyboardBinding(KeyCode.F1));
 
             // Gameplay quick-actions. Left/Right use the assigned heal item for the two bars (matching the
@@ -199,8 +199,8 @@ namespace DiscoAccess.Module
             _input.Register(WorldActions.RightHandItem, Strings.InputWorldRightHandItem, InputCategory.World, () => _commands.UseRightHand()).AddBinding(new KeyboardBinding(KeyCode.Alpha2));
 
             // F5/F8 (and Alt+S/Alt+L) quicksave/quickload, global so they fire from a menu or a conversation
-            // too, not just free-roam. The game's own CanSave/CanQuickLoad gates decide whether the press is
-            // honored, and a refusal is spoken (WorldCommands), never silent. Not while a text field is editing.
+            // too, not just free-roam. Each hands the game its own action; the game's own CanSave/CanQuickLoad
+            // gates decide silently, the mod neither gates nor announces. Not while a text field is editing.
             _input.Register(WorldActions.QuickSave, Strings.InputWorldQuickSave, InputCategory.Global,
                 () => { if (!_editGate.Active) _commands.QuickSave(); })
                 .AddBinding(new KeyboardBinding(KeyCode.F5))
@@ -221,7 +221,7 @@ namespace DiscoAccess.Module
 
             // Ctrl+L is the game's language quick-switch (primary/secondary swap), global (the world and
             // menus), since the game's bare-key bindings are killed by type-ahead in our migrated screens.
-            // Not while a text field is editing.
+            // Hands the game its own LanguageSwitch action; the game gates and switches. Not while editing.
             _input.Register(WorldActions.Language, Strings.InputWorldLanguage, InputCategory.Global,
                 () => { if (!_editGate.Active) _commands.SwitchLanguage(); })
                 .AddBinding(new KeyboardBinding(KeyCode.L, ctrl: true));
@@ -249,13 +249,16 @@ namespace DiscoAccess.Module
             {
                 if (!_screens.OwnsKeyboard || _editGate.Active || a.Category != InputCategory.UI)
                     return false;
-                bool consumed = _screens.Dispatch(a.Key);
-                // An Escape our navigator did not consume means the screen has no Back of its own (the title
-                // menu): hand the keyboard back so the game's own Escape runs (nothing at the title, matching
-                // vanilla; resume in the pause menu) rather than swallowing it.
-                if (!consumed && a.Key == UiActions.Back)
-                    _screens.DeferEscapeToGame();
-                return consumed;
+                // Escape on a game view is handed to the game's own back action (context-sensitive: it closes
+                // the open view or world container), so the game closes screens the way it does for a sighted
+                // player - the mod reconstructs no close. Only the mod's own surfaces (settings menu, popup)
+                // handle Escape themselves, since the game has no equivalent to close.
+                if (a.Key == UiActions.Back && !_screens.OnOwnSurface)
+                {
+                    _commands.Escape();
+                    return true;
+                }
+                return _screens.Dispatch(a.Key);
             };
 
             // Surface any view ScreenAdapter neither names nor silences (e.g. one a game update added),
@@ -298,6 +301,10 @@ namespace DiscoAccess.Module
             // UI key routes into the navigator only while it owns the keyboard and is not gated for an edit;
             // a World verb (recenter, interact, stop) fires its WorldReader handler.
             _input.Tick(Time.unscaledTime);
+
+            // Write any game-action press a world key just requested onto its InControl action, and release
+            // the previous frame's, so the game's own handlers read it as a one-frame keypress (see there).
+            Input.GameActionPress.Tick();
 
             // Read OS-typed characters into the navigator's type-ahead search. Bound nav keys (arrows,
             // Home/End, Escape) drive the results through _input above; this reads only the unbound typed
@@ -358,13 +365,12 @@ namespace DiscoAccess.Module
         {
             if (_screens == null || !_screens.OwnsKeyboard || _editGate.Active)
                 return null;
-            bool consumed = _screens.Dispatch(action);
-            if (!consumed && action == UiActions.Back)
+            if (action == UiActions.Back && !_screens.OnOwnSurface)
             {
-                _screens.DeferEscapeToGame();
-                return "back handed to the game (screen has no Back of its own)";
+                _commands.Escape();
+                return "escape handed to the game's back action";
             }
-            return (consumed ? "consumed " : "unconsumed ") + action;
+            return (_screens.Dispatch(action) ? "consumed " : "unconsumed ") + action;
         }
 
         // Dev seam (IDevDriver): our navigator's live state for the dev server's /nav.

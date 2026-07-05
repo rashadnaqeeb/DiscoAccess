@@ -52,7 +52,7 @@ namespace DiscoAccess.Module.Nav
             // The close is wired on a child button the component keeps no field for: its onClick carries
             // CloseNewspaper plus the click sound, the exact handler a sighted click runs.
             var close = _paper.transform.Find("Button").GetComponent<UnityEngine.UI.Button>();
-            var root = new NewspaperRoot(close);
+            var root = new Container(ContainerShape.VerticalList);
             _headline = new ReadonlyTextCell(() => TextFilter.Clean(GameLocalization.Cased(_paper.title)));
             root.Add(_headline);
             root.Add(new ReadonlyTextCell(() => TextFilter.Clean(GameLocalization.Cased(_paper.opener))));
@@ -84,20 +84,6 @@ namespace DiscoAccess.Module.Nav
             if (auto)
                 host.Speech.Speak(TextFilter.Clean(GameLocalization.Cased(_paper.opener)), interrupt: false);
             return false;
-        }
-
-        /// <summary>The article list. Back (Escape) closes through the game's own close button - the same
-        /// handler and sound as clicking it.</summary>
-        private sealed class NewspaperRoot : Container
-        {
-            private readonly UnityEngine.UI.Button _close;
-
-            public NewspaperRoot(UnityEngine.UI.Button close) : base(ContainerShape.VerticalList) => _close = close;
-
-            public override IEnumerable<ElementAction> GetActions()
-            {
-                yield return new ElementAction(ActionIds.Back, () => _close.onClick.Invoke());
-            }
         }
 
         /// <summary>An article-paging arrow: image-only with no caption term anywhere under it, so the

@@ -33,13 +33,6 @@ namespace DiscoAccess.Tests
         }
 
         [Fact]
-        public void HealFeedback_WrapsBarName()
-        {
-            Assert.Equal("Morale full", Strings.WorldBarFull("Morale"));
-            Assert.Equal("no Health items", Strings.WorldNoBarHeal("Health"));
-        }
-
-        [Fact]
         public void WalkFeedback_NameFirst_OrFallsBackWhenNameless()
         {
             Assert.Equal("moving to Cuno", Strings.WorldMovingTo("Cuno"));

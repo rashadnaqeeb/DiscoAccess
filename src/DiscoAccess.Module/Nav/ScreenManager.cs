@@ -76,6 +76,11 @@ namespace DiscoAccess.Module.Nav
         /// <see cref="Tick"/> before input is polled, so the input layer can gate UI keys on it.</summary>
         public bool OwnsKeyboard { get; private set; }
 
+        /// <summary>Whether the surface we drive is the mod's own (the settings menu or the confirmation
+        /// popup), which have no game equivalent, so we handle their Escape ourselves. On a game view, Escape
+        /// is instead handed to the game's own back action so the game closes the screen.</summary>
+        public bool OnOwnSurface => _modMenu != null || PopupOverlay.IsShowing();
+
         /// <summary>Whether type-ahead search is enabled on the attached screen (default true when none).</summary>
         public bool TypeAheadEnabled => _attachedScreen?.TypeAheadEnabled ?? true;
 
@@ -171,13 +176,6 @@ namespace DiscoAccess.Module.Nav
 
         /// <summary>Silently drop any live type-ahead search (the keyboard left our navigator).</summary>
         public void ClearSearch() => _nav.ClearSearch(announce: false);
-
-        /// <summary>Re-enable the game's input for now, so an Escape our navigator did not consume (a screen
-        /// with no Back of its own, like the title menu) reaches the game's own Escape handling - nothing at
-        /// the title, resume in the pause menu. We never swallow Escape into a silent no-op the game would
-        /// have acted on. Reasserted (re-disabled) next Tick while we still own the screen, so this is a
-        /// one-frame hand-back, not a release.</summary>
-        public void DeferEscapeToGame() => InControl.InputManager.Enabled = true;
 
         /// <summary>Open the mod menu if closed, close it if open. Driven by the F12 global hotkey. The
         /// open/close takes effect on the next <see cref="Tick"/>.</summary>
@@ -307,8 +305,8 @@ namespace DiscoAccess.Module.Nav
             // already taken the lever (InControl is off), so an uncaught throw would leave a keyboard-only
             // player with the game muted and our navigator never built - a dead keyboard. Catch it, hand the
             // keyboard back, and detach, so the broken screen falls back to the game's own input. (A screen
-            // with no Back is fine to own - the title menu has none by design; an unconsumed Escape there is
-            // handed back to the game by the pump, see DeferEscapeToGame.)
+            // with no Back is fine to own - the title menu has none by design; Escape on a game view is sent
+            // to the game's own back action by the pump.)
             try
             {
                 Container root = screen.BuildRoot(_host);

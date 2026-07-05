@@ -43,7 +43,7 @@ namespace DiscoAccess.Module.Nav
             // activation can trail the view transition by a frame.
             _view = Object.FindObjectOfType<ThoughtSplashScreenView>(true);
             _delivered = null;
-            var root = new SplashRoot(_view);
+            var root = new Container(ContainerShape.VerticalList);
             _name = new ReadonlyTextCell(Name);
             root.Add(_name);
             root.Add(new ReadonlyTextCell(Bonuses));
@@ -82,19 +82,5 @@ namespace DiscoAccess.Module.Nav
         private string Name() => TextFilter.Clean(_view.currentProject.GetDisplayName());
         private string Bonuses() => TextFilter.Clean(GameLocalization.Spoken(_view.propertiesText));
         private string Description() => TextFilter.Clean(_view.currentProject.completionDescription);
-
-        /// <summary>The splash's stops. Back (Escape) accepts through the game's own button - the same
-        /// handler as its controller close, advancing to the next queued thought or closing the view.</summary>
-        private sealed class SplashRoot : Container
-        {
-            private readonly ThoughtSplashScreenView _view;
-
-            public SplashRoot(ThoughtSplashScreenView view) : base(ContainerShape.VerticalList) => _view = view;
-
-            public override IEnumerable<ElementAction> GetActions()
-            {
-                yield return new ElementAction(ActionIds.Back, () => _view.buttonClose.onClick.Invoke());
-            }
-        }
     }
 }

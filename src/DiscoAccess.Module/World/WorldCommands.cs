@@ -1,8 +1,6 @@
 using DiscoAccess.Core.Modularity;
 using DiscoAccess.Core.Strings;
 using Sunshine.Metric;
-using Sunshine.Views;
-using UnityEngine.UI;
 
 namespace DiscoAccess.Module.World
 {
@@ -24,19 +22,32 @@ namespace DiscoAccess.Module.World
 
         public WorldCommands(IModHost host) { _host = host; }
 
-        // ---- Information screens: invoke the HUD menu button's own click, the path a sighted player takes,
-        // so the game opens the view and our screen reader picks it up. Closing is Escape (the screen's Back).
-        public void OpenInventory() => ClickHudMenu(HudMenuController.Current.inventory);
-        public void OpenCharacterSheet() => ClickHudMenu(HudMenuController.Current.charsheet);
-        public void OpenJournal() => ClickHudMenu(HudMenuController.Current.journal);
-        public void OpenThoughtCabinet() => ClickHudMenu(HudMenuController.Current.thoughtcabinet);
+        // ---- Information screens and pause/help: the mod does not open these itself. It hands the game the
+        // matching keystroke and lets the game's own input handlers do everything - opening, refusing, the
+        // transition - with all their gating intact. Reconstructing the open (ToggleView, a button's onClick)
+        // bypasses that gating and can wedge the view state when it lands mid-animation.
+        //
+        // The world keyboard mutes InControl wholesale (see WorldReader), so PressGameKey re-enables it and
+        // injects the game action as pressed for this frame; the world reader reasserts the mute next frame,
+        // which clears the state, so the press is a clean one-frame edge.
+        public void OpenInventory() => PressGameKey(Actions.Inventory);
+        public void OpenCharacterSheet() => PressGameKey(Actions.CharacterSheet);
+        public void OpenJournal() => PressGameKey(Actions.Journal);
+        public void OpenThoughtCabinet() => PressGameKey(Actions.ThoughtCabinet);
+        public void OpenHelp() => PressGameKey(Actions.Help);
 
-        private static void ClickHudMenu(HudMenuButton button)
-            => button.GetComponent<Button>().onClick.Invoke();
+        // The game's Escape/back action, context-sensitive in the game's own handler: it opens the pause menu
+        // in free-roam and closes an open view or world container in a menu. Used both for the free-roam pause
+        // key and for Escape on any game screen, so the game closes screens the way it does for a sighted player.
+        public void Escape() => PressGameKey(Actions.Pause);
 
-        // Pause and help open through the game's own view controller (the call its Escape/F1 handlers make).
-        public void OpenPauseMenu() => ViewController.ToggleView(ViewType.MAINMENU, false);
-        public void OpenHelp() => ViewController.ToggleView(ViewType.HELPOVERLAY, false);
+        // The live game action set (MyCharacterActions), the source every game menu hotkey reads.
+        private static MyCharacterActions Actions => CrossPlatformInputManager.mCPIM.InputActions;
+
+        // Queue the game action as a keypress; the world reader keeps InControl enabled for the frame and
+        // GameActionPress injects it into InControl's own update, so the game's handlers act on it (see there).
+        private static void PressGameKey(InControl.PlayerAction action)
+            => Input.GameActionPress.Request(action);
 
         // ---- Status readouts. Time reuses the game's own localized day-and-hour string; money and health
         // are composed in Core from the raw model values.
@@ -77,106 +88,29 @@ namespace DiscoAccess.Module.World
         // The game's tooltip term for the "Experience" word (the XP panel's own label source).
         private const string ExperienceTerm = "THC_TOOLTIP_EXP";
 
-        // ---- Quick-actions ----
+        // ---- Quick-actions: hand the game the action and let it heal / use the hand item with its own gating
+        // (a no-op with only a sound when there is no charge, a full bar, or an empty hand). Heal maps to the
+        // game's Endurance/Volition heal actions (left heals Health, right heals Morale); the hand keys to its
+        // LeftHand/RightHand actions. The heal and substance notifications the game raises on a real action are
+        // spoken by NotificationReader.
+        public void HealEndurance() => PressGameKey(Actions.Endurance);
+        public void HealVolition() => PressGameKey(Actions.Volition);
+        public void UseLeftHand() => PressGameKey(Actions.LeftHand);
+        public void UseRightHand() => PressGameKey(Actions.RightHand);
 
-        // Heal a bar by clicking its HUD healing button, the same call the controller dpad makes (left heals
-        // Health, right heals Morale). The button's own click both spends the charge and applies the heal, and
-        // raises the game's health/morale notification that NotificationReader speaks - so this adds no line of
-        // its own. It refuses first, with spoken feedback, when no charge is assigned or the bar is already
-        // full (the button alone only plays an unspoken failure sound), so a blind player hears why nothing
-        // happened.
-        public void HealEndurance() => Heal(SkillType.ENDURANCE, HealthTerm);
-        public void HealVolition() => Heal(SkillType.VOLITION, MoraleTerm);
-
-        private void Heal(SkillType skill, string barTerm)
-        {
-            string bar = GameLocalization.Translate(barTerm);
-            var pools = PlayerCharacter.Singleton.healingPools;
-            if (pools.GetHealingChargetsForSkill(skill) <= 0) { _host.Speech.Speak(Strings.WorldNoBarHeal(bar), interrupt: true); return; }
-            if (!BarHasDamage(skill)) { _host.Speech.Speak(Strings.WorldBarFull(bar), interrupt: true); return; }
-            FindHealingButton(skill).OnPointerClick(null);
-        }
-
-        // The game's localization terms for the two bars (the skills set their values; the bars carry these names).
+        // The game's localization terms for the two bars, used by the health readout above.
         private const string HealthTerm = "HEALTH";
         private const string MoraleTerm = "MORALE";
 
-        // The HUD healing button for a bar, matched by the pool it heals (Endurance = Health, Volition =
-        // Morale). Re-found each press rather than held, since the HUD is rebuilt across scene loads.
-        private static HealingButton FindHealingButton(SkillType skill)
-        {
-            foreach (var button in UnityEngine.Object.FindObjectsOfType<HealingButton>())
-                if (button.HealingPoolType == skill) return button;
-            return null;
-        }
-
-        // The game's own heal-eligibility gate (a bar can be healed only while it carries damage), reused so
-        // the mod's refusal stays in lockstep with the button's.
-        private static bool BarHasDamage(SkillType skill)
-            => skill == SkillType.ENDURANCE
-                ? Sunshine.Dialogue.CharacterLuaFunctions.HasEnduranceDamage()
-                : Sunshine.Dialogue.CharacterLuaFunctions.HasVolitionDamage();
-
-        // Use the item held in a hand by clicking its HUD held-item button, the same call the controller stick
-        // clicks make (left stick = left hand, right stick = right hand): the button's own click runs the real
-        // substance-use (which raises the game's substance notification NotificationReader speaks) or starts
-        // the held orb's conversation. No success line of our own: the click is a no-op for a substance still
-        // on cooldown or an item that is neither, so a spoken "used" would lie; the game's own feedback carries
-        // a real use. An empty hand still reads as such, since nothing else would say so.
-        public void UseLeftHand()
-            => UseHand(EquipmentSlotType.HELDLEFT, HudHeldPanelController.Current.leftHandHeldButton, Strings.WorldLeftHandEmpty);
-        public void UseRightHand()
-            => UseHand(EquipmentSlotType.HELDRIGHT, HudHeldPanelController.Current.rightHandHeldButton, Strings.WorldRightHandEmpty);
-
-        private void UseHand(EquipmentSlotType slot, HudHeldButton button, string empty)
-        {
-            if (InventoryViewData.Singleton.GetItemInSlot(slot) == null) { _host.Speech.Speak(empty, interrupt: true); return; }
-            button.OnHeldButtonClicked();
-        }
-
-        // Global keys, so both can fire anywhere - a menu, a conversation, even the title screen, where
-        // World.Singleton does not exist yet (the one place these handlers cannot trust the singletons).
-        // The game gates both (CanSave refuses dialogue, cutscenes, most views; CanQuickLoad adds
-        // transitions) and DoQuickSave silently no-ops when refused, so the refusal is spoken here.
-        // The game raises its own QuicksaveComplete notification when the save lands, which NotificationReader
-        // speaks, so an accepted press only triggers the save (a line here would double-speak it).
-        public void QuickSave()
-        {
-            if (global::World.Singleton == null || !SunshinePersistence.CanSave())
-            { _host.Speech.Speak(Strings.WorldQuickSaveUnavailable, interrupt: true); return; }
-            SunshinePersistence.Singleton.DoQuickSave();
-        }
-
-        // CanQuickLoad gates on context only, not on a quicksave existing (DoQuickLoad would hand Load a
-        // null save name), so the two refusals are distinguished: nothing to load vs wrong moment.
-        public void QuickLoad()
-        {
-            if (global::World.Singleton == null || !SunshinePersistence.CanQuickLoad())
-            { _host.Speech.Speak(Strings.WorldQuickLoadUnavailable, interrupt: true); return; }
-            if (string.IsNullOrEmpty(SunshinePersistenceFileManager.GetLastSaveWithNamePart(SunshinePersistenceFileManager.QUICK_SAVE_SLOT_NAME)))
-            { _host.Speech.Speak(Strings.WorldNoQuickSave, interrupt: true); return; }
-            _host.Speech.Speak(Strings.WorldQuickLoading, interrupt: true);
-            SunshinePersistence.Singleton.DoQuickLoad();
-        }
-
-        // The game's language quick-switch: swap to the secondary language configured in options, then
-        // speak the new language's own name as confirmation. Goes through SmoothLanguageSwitch (the
-        // handler behind the game's own quick-switch keys), which also swaps the primary/secondary
-        // settings via OnLanguagesSwitched so the next press switches back. Snap rather than the smooth
-        // fade: the fade is visual-only and delays the actual language change past the confirmation
-        // speech. The game gates the switch (title menu, settings view, photo mode, mid-save); a
-        // refused press says so rather than going silent.
-        public void SwitchLanguage()
-        {
-            var switcher = UnityEngine.Object.FindObjectOfType<LocalizationCustomSystem.SmoothLanguageSwitch>();
-            if (switcher == null || !switcher.CanSwitchLanguage())
-            {
-                _host.Speech.Speak(Strings.WorldNoLanguageSwitch, interrupt: true);
-                return;
-            }
-            switcher.ToggleLanguage(snapToggle: true);
-            string lang = I2.Loc.LocalizationManager.CurrentLanguage;
-            _host.Speech.Speak(string.IsNullOrEmpty(lang) ? Strings.WorldLanguageChanged : lang, interrupt: true);
-        }
+        // Quicksave, quickload, and the language quick-switch: hand the game its own action and let its
+        // handlers do everything, exactly like the screen and heal keys. The game gates each itself
+        // (CanSave, CanQuickLoad, CanSwitchLanguage) and no-ops silently when refused; the mod neither
+        // gates nor announces - its checks went stale against the game's, and a refusal is the game's to
+        // decide. A completed save raises the game's own QuicksaveComplete notification, spoken by
+        // NotificationReader; LanguageSync follows the game language after a switch. Pressing LanguageSwitch0
+        // fires the game's SmoothLanguageSwitch, which toggles primary/secondary so the next press reverts.
+        public void QuickSave() => PressGameKey(Actions.QuickSave);
+        public void QuickLoad() => PressGameKey(Actions.QuickLoad);
+        public void SwitchLanguage() => PressGameKey(Actions.LanguageSwitch0);
     }
 }

@@ -33,7 +33,7 @@ namespace DiscoAccess.Module.Nav
         public override Container BuildRoot(IModHost host)
         {
             _host = host;
-            var root = new PawnshopRoot();
+            var root = new Container(ContainerShape.Panel);
 
             _itemsList = new Container(ContainerShape.VerticalList, Strings.InventoryItemsLabel);
             root.Add(_itemsList);
@@ -122,21 +122,6 @@ namespace DiscoAccess.Module.Nav
             // rather than silently vanishing from the tab order.
             if (docks.Count == 0)
                 _itemsList.Add(new ReadonlyTextCell(() => Strings.InventoryNoItems));
-        }
-    }
-
-    /// <summary>The pawnshop's root. Back (Escape) closes through the game's own close button (the
-    /// "Pawnshop Close Button"), so its wired teardown and the return to the dialogue match a sighted
-    /// click; the generic <see cref="ScreenRoot"/> view close bypasses that path.</summary>
-    internal sealed class PawnshopRoot : Container
-    {
-        public PawnshopRoot() : base(ContainerShape.Panel) { }
-
-        public override IEnumerable<ElementAction> GetActions()
-        {
-            var close = InventoryAdapter.Tooltip()?.closeButton;
-            if (close != null)
-                yield return new ElementAction(ActionIds.Back, () => close.onClick.Invoke());
         }
     }
 

@@ -545,25 +545,6 @@ namespace DiscoAccess.Core.Strings
             D("WorldExperienceLabel", "experience"),
             // Healing items assigned and ready to use on a bar; {0} = the count.
             D("HealCharges", "{0} healing charge|{0} healing charges"),
-            // Heal-key feedback; {0} = the game's localized bar name (I2 HEALTH / MORALE value), so
-            // inflect around a noun of that gender. Healed / already full / no healing items carried.
-            D("WorldBarFull", "{0} full"),
-            D("WorldNoBarHeal", "no {0} items"),
-            // Use-held-item feedback: the item in that hand was used, or the hand carries nothing.
-            D("WorldLeftHandEmpty", "left hand empty"),
-            D("WorldRightHandEmpty", "right hand empty"),
-            // Quick-load beginning / quick-save slot not created yet.
-            D("WorldQuickLoading", "quick loading"),
-            D("WorldNoQuickSave", "no quick save"),
-            // The F5/F8 press refused: the game gates saving and loading (dialogue, cutscenes, most
-            // menus). Match WorldNoLanguageSwitch's phrasing.
-            D("WorldQuickSaveUnavailable", "quick save unavailable"),
-            D("WorldQuickLoadUnavailable", "quick load unavailable"),
-            // The language quick-switch key switched the game's language.
-            D("WorldLanguageChanged", "language changed"),
-            // The quick-switch refused: the game gates it (title menu, settings screen, photo mode,
-            // mid-save).
-            D("WorldNoLanguageSwitch", "language switch unavailable"),
             // The loading screen's gameplay tip, labelled for what it is; {0} = the game's own
             // localized tip sentence.
             D("LoadingTip", "tip, {0}"),
@@ -1148,19 +1129,6 @@ namespace DiscoAccess.Core.Strings
 
         /// <summary>Authored fallback for the game's Experience term, used only if it fails to resolve.</summary>
         public static string WorldExperienceLabel => T("WorldExperienceLabel");
-
-        // ---- World quick-action feedback (mod-authored; the game speaks none of these). The heal
-        // feedback is composed around the game's bar name (Health/Morale) so it localizes. ----
-        public static string WorldBarFull(string barName) => F("WorldBarFull", barName);
-        public static string WorldNoBarHeal(string barName) => F("WorldNoBarHeal", barName);
-        public static string WorldLeftHandEmpty => T("WorldLeftHandEmpty");
-        public static string WorldRightHandEmpty => T("WorldRightHandEmpty");
-        public static string WorldQuickLoading => T("WorldQuickLoading");
-        public static string WorldNoQuickSave => T("WorldNoQuickSave");
-        public static string WorldQuickSaveUnavailable => T("WorldQuickSaveUnavailable");
-        public static string WorldQuickLoadUnavailable => T("WorldQuickLoadUnavailable");
-        public static string WorldLanguageChanged => T("WorldLanguageChanged");
-        public static string WorldNoLanguageSwitch => T("WorldNoLanguageSwitch");
 
         // ---- Cutscene descriptions: authored narration for the game's silent visual set pieces,
         // spoken when the scene starts (see the table entry). ----

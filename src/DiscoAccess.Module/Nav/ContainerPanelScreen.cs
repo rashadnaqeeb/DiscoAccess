@@ -20,7 +20,7 @@ namespace DiscoAccess.Module.Nav
     /// only while the panel is up; the ScreenManager then takes the keyboard from the world reader and
     /// hands it back when the panel closes (announced by <see cref="ContainerReader"/>, which also covers
     /// the game closing it on its own when the player walks out of range). The tree is a flat list: the
-    /// items still inside, then the game's own Take all and Close buttons; Escape closes via Close.
+    /// items still inside, then the game's own Take all and Close buttons; Escape closes through the game.
     /// </summary>
     internal sealed class ContainerPanelScreen : Screen
     {
@@ -41,7 +41,7 @@ namespace DiscoAccess.Module.Nav
         public override Container BuildRoot(IModHost host)
         {
             Sunshine.Container panel = Panel();
-            var root = new ContainerPanelRoot(panel);
+            var root = new Container(ContainerShape.VerticalList);
             var items = panel.Source.containedItems;
             for (int i = 0; i < items.Count; i++)
                 if (ContainerLootCell.IsShown(items[i]))
@@ -66,20 +66,6 @@ namespace DiscoAccess.Module.Nav
             if (next == null) return false;
             nav.Focus(next, announce: false);
             return true;
-        }
-    }
-
-    /// <summary>The panel's root list. Back (Escape) closes the panel the game's own way, through its
-    /// Close button, so the close sound and the walk-away state match a sighted click.</summary>
-    internal sealed class ContainerPanelRoot : Container
-    {
-        private readonly Sunshine.Container _panel;
-
-        public ContainerPanelRoot(Sunshine.Container panel) : base(ContainerShape.VerticalList) => _panel = panel;
-
-        public override IEnumerable<ElementAction> GetActions()
-        {
-            yield return new ElementAction(ActionIds.Back, () => _panel.closeButton.onClick.Invoke());
         }
     }
 
