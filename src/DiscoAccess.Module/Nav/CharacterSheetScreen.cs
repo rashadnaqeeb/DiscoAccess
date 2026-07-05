@@ -10,21 +10,21 @@ using Grid = DiscoAccess.Core.UI.Nav.Grid;
 namespace DiscoAccess.Module.Nav
 {
     /// <summary>
-    /// The in-game character sheet. Its root is a Panel with two Tab-stops: the main block (the 2D grid of
+    /// The in-game character sheet. Its root is a Panel with one Tab-stop: the main block (the 2D grid of
     /// attributes and skills, with the experience/points readout and the Revert Level Up button stacked
-    /// under it) and the focused skill's detail region. Tab moves between the two; arrows move within the
-    /// grid, and Down from the grid's bottom row spills down through the status readout and the revert
-    /// button (Up returns). The game's Overview/Info tabs are not surfaced - the detail region already reads
-    /// both their contents, so the toggles would do nothing for a screen-reader user.
+    /// under it). Arrows move within the grid, and Down from the grid's bottom row spills down through the
+    /// status readout and the revert button (Up returns). The game's Overview/Info tabs are not surfaced -
+    /// the skill line already folds in both their contents, so the toggles would do nothing for a
+    /// screen-reader user.
     ///
     /// The grid mirrors the screen - each attribute (read-only, see <see cref="AttributeCell"/>) as column
     /// zero, then its six skills across, four attribute rows top to bottom (Intellect, Psyche, Physique,
     /// Motorics). Up/Down move between attributes keeping the column, Left/Right along a row. Each skill
-    /// (<see cref="LevelUpSkillCell"/>) reads its name, value, signature and "can raise" markers, and short
-    /// description, drives the detail panel to itself on focus, and on Enter spends a skill point when one is
-    /// available. The detail region (<see cref="SkillDetailCell"/>) then reads that skill's bonus breakdown
-    /// and long description. The status readout (<see cref="CharStatusCell"/>) is experience and unspent
-    /// skill points. Escape closes the sheet (<see cref="ScreenRoot"/>).
+    /// (<see cref="LevelUpSkillCell"/>) reads its name, value, signature and "can raise" markers, short
+    /// description, and its full info-panel detail (bonus breakdown then long description) folded onto the
+    /// one line, and on Enter spends a skill point when one is available. The status readout
+    /// (<see cref="CharStatusCell"/>) is experience and unspent skill points. Escape closes the sheet
+    /// (<see cref="ScreenRoot"/>).
     ///
     /// The charsheet's panels are instantiated a frame or two after the view transition, so the first build
     /// can find none: <see cref="OnUpdate"/> repopulates in place once they appear (and while their counts
@@ -63,12 +63,11 @@ namespace DiscoAccess.Module.Nav
         }
 
         // Rebuild the root once the panels are available: the main block (grid, then the status readout,
-        // then the Revert button - one vertical flow so Down from the grid spills down through them) as one
-        // Tab-stop, and the skill detail region as the other. Built whole (not incrementally) and only while
-        // the panel counts settle; after
-        // that the cells read live with no rebuild, so spending a point - which the cells reflect live and
-        // which does not change the panel counts - does not churn the tree. Until the panels appear the root
-        // stays empty, so nothing is focusable and entry focus lands on the grid once it fills.
+        // then the Revert button - one vertical flow so Down from the grid spills down through them) as the
+        // one Tab-stop. Built whole (not incrementally) and only while the panel counts settle; after that
+        // the cells read live with no rebuild, so spending a point - which the cells reflect live and which
+        // does not change the panel counts - does not churn the tree. Until the panels appear the root stays
+        // empty, so nothing is focusable and entry focus lands on the grid once it fills.
         private void Populate()
         {
             _root.Clear();
@@ -79,20 +78,14 @@ namespace DiscoAccess.Module.Nav
                 return;
             panels.Sort((a, b) => a.transform.GetSiblingIndex().CompareTo(b.transform.GetSiblingIndex()));
 
-            // The detail region, built first so the grid cells can point it at (or away from) themselves on
-            // focus: a skill makes itself its subject, an attribute clears it (the panel cannot show one).
-            var detail = new SkillDetailCell();
-
             // Main block: the grid, then the experience/points readout, then the Revert Level Up button
             // (active only when level-ups are pending), one vertical flow so Down from the grid spills down
             // through them.
             var main = new Container(ContainerShape.VerticalList);
-            main.Add(BuildGrid(panels, detail));
+            main.Add(BuildGrid(panels));
             main.Add(new CharStatusCell());
             AddButton(main, Charsheet(panels[0]), "Revert Level Up Button");
             _root.Add(main);
-
-            _root.Add(detail); // the focused skill's breakdown then long description
         }
 
         // Add a charsheet button (icon-only, captioned through its localized image term) by name, found from
@@ -136,7 +129,7 @@ namespace DiscoAccess.Module.Nav
 
         // The grid: one row per attribute - the attribute as column zero, then its six skills, in the game's
         // own row-major layout order.
-        private Grid BuildGrid(List<SkillPortraitPanel> panels, SkillDetailCell detail)
+        private Grid BuildGrid(List<SkillPortraitPanel> panels)
         {
             var grid = new Grid();
             int cols = ColumnCount(panels[0]);
@@ -153,12 +146,12 @@ namespace DiscoAccess.Module.Nav
             {
                 var rowCells = new List<UIElement>(cols + 1);
                 if (useAttrs)
-                    rowCells.Add(new CharAttributeCell(attrs[r], detail));
+                    rowCells.Add(new CharAttributeCell(attrs[r]));
                 for (int c = 0; c < cols; c++)
                 {
                     int i = r * cols + c;
                     if (i < panels.Count)
-                        rowCells.Add(new LevelUpSkillCell(panels[i], _host, detail));
+                        rowCells.Add(new LevelUpSkillCell(panels[i], _host));
                 }
                 grid.AddRow(rowCells.ToArray());
             }

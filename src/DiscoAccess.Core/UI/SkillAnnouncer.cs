@@ -7,8 +7,9 @@ namespace DiscoAccess.Core.UI
     /// <see cref="SkillState"/>. Order follows the house style: the skill name first (the distinguishing
     /// word, since the player moves across the grid), then its value, then the signature marker when this
     /// skill is the chosen one, then a "can raise" marker on the in-game sheet when a point can be spent
-    /// here, then the flavor description last so a quick navigator hears the mechanical detail before the
-    /// longer text is cut by the next focus. <see cref="ComposeSignature"/> yields the signature marker
+    /// here, then the flavor description, and finally the in-game sheet's info-panel detail (the bonus
+    /// breakdown then the long encyclopedic description) folded on last so a quick navigator hears the
+    /// mechanical detail before the longer text is cut by the next focus. <see cref="ComposeSignature"/> yields the signature marker
     /// alone (empty when not the signature), for re-announcing the moment the player sets this focused
     /// skill as their signature, where the name was already spoken on focus. The name and description are
     /// the game's own localized text; the signature and "can raise" markers are mod-authored.
@@ -17,7 +18,8 @@ namespace DiscoAccess.Core.UI
     {
         public static string Compose(SkillState s)
         {
-            return Text.SpokenLine.Join(s.Name + " " + s.Value, SignatureWord(s), RaiseWord(s), s.Description);
+            return Text.SpokenLine.Join(s.Name + " " + s.Value, SignatureWord(s), RaiseWord(s), s.Description,
+                s.Bonuses, s.LongDescription);
         }
 
         public static string ComposeSignature(SkillState s)

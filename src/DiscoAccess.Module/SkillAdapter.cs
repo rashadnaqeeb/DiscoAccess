@@ -35,11 +35,13 @@ namespace DiscoAccess.Module
         }
 
         /// <summary>Read a skill portrait on the in-game character sheet for its grid line: name, displayed
-        /// total, signature marker, and a "can raise" marker set when the skill is upgradeable and the
-        /// player has a skill point to spend (<paramref name="pointsAvailable"/>, computed by the caller
-        /// from the leveling controller). The value is the displayed <c>SkillNumber</c> label, the settled
-        /// total (the skill model's own <c>value</c> field is not the live total). The description is the
-        /// skill's short tagline, the same one the signature-skill screen reads.</summary>
+        /// total, signature marker, a "can raise" marker set when the skill is upgradeable and the player
+        /// has a skill point to spend (<paramref name="pointsAvailable"/>, computed by the caller from the
+        /// leveling controller), and the info-panel detail folded on (the bonus breakdown then the long
+        /// description). The value is the displayed <c>SkillNumber</c> label, the settled total (the skill
+        /// model's own <c>value</c> field is not the live total). The description is the skill's short
+        /// tagline, the same one the signature-skill screen reads. The detail is read from the live skill
+        /// model, not the shared info panel, so it reflects this skill with no cursor move or frame lag.</summary>
         public static SkillState ReadLeveling(SkillPortraitPanel panel, bool pointsAvailable)
         {
             string name = Skill.SkillTypeToLocalizedName(panel.skill, false);
@@ -48,7 +50,13 @@ namespace DiscoAccess.Module
             // signature frame being shown.
             bool isSignature = panel.signatureFrame != null && panel.signatureFrame.gameObject.activeInHierarchy;
             bool canRaise = panel.isUpgradeable && pointsAvailable;
-            return new SkillState(name, Value(panel), Description(panel.skill), isSignature, canRaise);
+            // The live skill (a Modifiable) on the character, the source the info panel itself reads: its
+            // bonus breakdown and long description, composed the game's own way but off the model so the
+            // read needs no selection. Null when the character is not up, leaving the detail unspoken.
+            var skill = CharsheetView.Singleton?.character?.GetSkill(panel.skill);
+            string bonuses = skill != null ? CharacterSheetInfoPanel.GatherModifiableData(skill) : null;
+            return new SkillState(name, Value(panel), Description(panel.skill), isSignature, canRaise,
+                bonuses, LongDescription(panel.skill));
         }
 
         // The displayed total sits in the portrait's SkillNumber label. It is a plain TextMeshPro here
@@ -62,16 +70,21 @@ namespace DiscoAccess.Module
         }
 
         // Each skill is a dialogue actor; its short tagline ("Wield raw intellectual power...") is the
-        // actor's short_description field. DE localizes actor fields through its own custom system, the way
-        // its skill panel does; the dialogue database keeps short_description only in English, so Pixel
-        // Crushers' LookupLocalizedValue would speak the English dev string in every language. Null when the
-        // actor or database is not found, leaving the description unspoken rather than failing the whole read.
-        private static string Description(SkillType skill)
+        // actor's short_description field, and its long encyclopedic entry the LongDescription field (the
+        // same one the info panel reads). DE localizes actor fields through its own custom system, the way
+        // its skill panel does; the dialogue database keeps these fields only in English, so Pixel Crushers'
+        // LookupLocalizedValue would speak the English dev string in every language. Null when the actor or
+        // database is not found, leaving that text unspoken rather than failing the whole read.
+        private static string Description(SkillType skill) => ActorField(skill, "short_description");
+
+        private static string LongDescription(SkillType skill) => ActorField(skill, "LongDescription");
+
+        private static string ActorField(SkillType skill, string field)
         {
             DialogueDatabase database = DialogueManager.MasterDatabase;
             Actor actor = database != null ? database.GetActor(Skill.GetActorSkillName(skill)) : null;
             return actor != null
-                ? LocalizationCustomSystem.LocalizationUtils.GetActorLocalizedField(actor, "short_description")
+                ? LocalizationCustomSystem.LocalizationUtils.GetActorLocalizedField(actor, field)
                 : null;
         }
     }

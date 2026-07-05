@@ -8,10 +8,11 @@ namespace DiscoAccess.Module.Nav
 {
     /// <summary>
     /// A skill cell on the in-game character sheet, wrapping one live <see cref="SkillPortraitPanel"/>.
-    /// Reads the skill's name, value, signature marker, a "can raise" marker, and flavour description live
-    /// at announce time (never cached) through <see cref="SkillAdapter"/> and the Core
+    /// Reads the skill's name, value, signature marker, a "can raise" marker, flavour description, and the
+    /// info panel's full detail (bonus breakdown then long description) folded onto the one line, live at
+    /// announce time (never cached) through <see cref="SkillAdapter"/> and the Core
     /// <see cref="SkillAnnouncer"/>. On focus it makes the skill the game's selection so its portrait
-    /// highlights and the detail panel follows; on activate, when the skill is upgradeable and a skill
+    /// highlights; on activate, when the skill is upgradeable and a skill
     /// point is available, it spends one through the game's own level-up button and the navigator
     /// re-announces the raised value. When the raise cannot happen, it instead re-announces why - the game's
     /// own reason for a capped skill, or that no points remain.
@@ -20,17 +21,15 @@ namespace DiscoAccess.Module.Nav
     {
         private readonly SkillPortraitPanel _panel;
         private readonly IModHost _host;
-        private readonly SkillDetailCell _detail;
         // Set by Raise when an Enter could not spend a point, read once by the next re-announce: the reason
         // to speak instead of a value (a capped skill's game reason, or that no points remain). Null after a
         // successful raise, so the re-announce reads the new value.
         private string _failureReason;
 
-        public LevelUpSkillCell(SkillPortraitPanel panel, IModHost host, SkillDetailCell detail)
+        public LevelUpSkillCell(SkillPortraitPanel panel, IModHost host)
         {
             _panel = panel;
             _host = host;
-            _detail = detail;
         }
 
         // Focusable while the skill's select button is shown and interactable.
@@ -61,17 +60,17 @@ namespace DiscoAccess.Module.Nav
 
         public override bool ReannounceOnActivate => true;
 
-        // As focus lands, highlight the portrait and drive the detail panel to this skill, so the detail
-        // region (which reads the panel) reflects the focused skill, and mark this skill as the detail
-        // region's subject so that region is reachable. The panel follows the mouse, not the controller, on
-        // its own, so we set its selection explicitly.
+        // As focus lands, highlight the portrait: make this skill the game's selection so its portrait
+        // frame lights up and the info panel tracks it (the detail folded into the focus line is read from
+        // the model, not this selection, but keeping the game's selection in step lets the level-up button
+        // act on the right skill). The panel follows the mouse, not the controller, on its own, so we set
+        // its selection explicitly.
         public override void OnFocused()
         {
             GameCursor.Follow(_panel.selectButton);
             var info = CharacterSheetInfoPanel.Singleton;
             if (info != null)
                 info.SetSelected(_panel.TryCast<ICharsheetSelecteble>(), true);
-            _detail.Subject = _panel;
         }
 
         public override IEnumerable<ElementAction> GetActions()

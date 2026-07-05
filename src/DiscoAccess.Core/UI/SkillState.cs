@@ -12,6 +12,13 @@ namespace DiscoAccess.Core.UI
     /// <see cref="CanRaise"/> is set on the in-game character sheet, where a skill point can be spent to
     /// raise the skill: true when the skill is upgradeable and points remain. The signature-skill screen
     /// leaves it false (no leveling there), so the announcer adds the "can raise" marker only on the sheet.
+    ///
+    /// <see cref="Bonuses"/> and <see cref="LongDescription"/> are the in-game character sheet's info-panel
+    /// detail, folded onto the skill line so it reads without a separate Tab-stop: the bonus breakdown
+    /// (attribute base, learned, signature, items, thoughts) and the long encyclopedic description. Both
+    /// are the game's own text read from the live skill model, both optional (a lookup miss leaves them
+    /// null), and both spoken after the short description so a quick navigator hears name and value before
+    /// the longer text is cut by the next focus. The signature-skill screen leaves them null.
     /// </summary>
     public sealed class SkillState
     {
@@ -20,14 +27,19 @@ namespace DiscoAccess.Core.UI
         public string? Description { get; }
         public bool IsSignature { get; }
         public bool CanRaise { get; }
+        public string? Bonuses { get; }
+        public string? LongDescription { get; }
 
-        public SkillState(string name, int value, string? description, bool isSignature, bool canRaise = false)
+        public SkillState(string name, int value, string? description, bool isSignature, bool canRaise = false,
+            string? bonuses = null, string? longDescription = null)
         {
             Name = name;
             Value = value;
             Description = description;
             IsSignature = isSignature;
             CanRaise = canRaise;
+            Bonuses = bonuses;
+            LongDescription = longDescription;
         }
     }
 }
