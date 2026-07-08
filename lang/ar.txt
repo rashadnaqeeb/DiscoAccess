@@ -40,6 +40,7 @@ InputWorldScanItemsPrev = الغرض السابق في الماسح
 InputWorldScanExitsNext = المخرج التالي في الماسح
 InputWorldScanExitsPrev = المخرج السابق في الماسح
 InputWorldScanCursor = نقل المؤشر إلى العنصر الممسوح
+InputWorldScanWaypoint = اتجاه المشي إلى العنصر الممسوح
 InputWorldInventory = فتح المخزون
 InputWorldCharacterSheet = فتح صفحة الشخصية
 InputWorldJournal = فتح دفتر اليوميات

@@ -42,6 +42,7 @@ InputWorldScanItemsPrev = Article précédent du scanner
 InputWorldScanExitsNext = Sortie suivante du scanner
 InputWorldScanExitsPrev = Sortie précédente du scanner
 InputWorldScanCursor = Déplacer le curseur sur l'objet scanné
+InputWorldScanWaypoint = Direction de marche vers l'objet scanné
 InputWorldInventory = Ouvrir l'inventaire
 InputWorldCharacterSheet = Ouvrir la fiche du personnage
 InputWorldJournal = Ouvrir le journal

@@ -41,6 +41,7 @@ InputWorldScanItemsPrev = Предыдущий предмет
 InputWorldScanExitsNext = Следующий выход
 InputWorldScanExitsPrev = Предыдущий выход
 InputWorldScanCursor = Переместить курсор к объекту сканера
+InputWorldScanWaypoint = Направление пути к объекту сканера
 InputWorldInventory = Открыть инвентарь
 InputWorldCharacterSheet = Открыть страницу персонажа
 InputWorldJournal = Открыть журнал
