@@ -57,12 +57,11 @@ namespace DiscoAccess.Module.World
         /// an orb is walked to by this verb and triggered on arrival.</summary>
         public bool BeginInteract(IWalkTarget target, Snv from)
         {
-            // The game ignores world clicks while any input lock is held (a scripted scene still
-            // animating after a dialogue's last line, a camera move, a transition): its own click paths
-            // check this before moving, so mirror it at command time - Drive is the raw MoveToTarget,
-            // which skips that gate, and a bookmark walk arrives from the menu without the world
-            // reader's ownership check. Spoken, so the refusal is never a silent dead key.
-            if (InputLocked())
+            // The game ignores world clicks while any input lock is held (see GameInputLock): its own
+            // click paths check this before moving, so mirror it at command time - Drive is the raw
+            // MoveToTarget, which skips that gate, and a bookmark walk arrives from the menu without the
+            // world reader's ownership check. Spoken, so the refusal is never a silent dead key.
+            if (GameInputLock.Held)
             {
                 _host.Speech.Speak(Strings.WorldNoControl, interrupt: true);
                 return false;
@@ -117,7 +116,7 @@ namespace DiscoAccess.Module.World
         public bool BeginWalk(Snv point, string announcement)
         {
             // The game's input-lock gate, exactly as in BeginInteract.
-            if (InputLocked())
+            if (GameInputLock.Held)
             {
                 _host.Speech.Speak(Strings.WorldNoControl, interrupt: true);
                 return false;
@@ -303,16 +302,6 @@ namespace DiscoAccess.Module.World
         // thought orb sits on the character. Read live (never cached) so the block lifts the instant the orb
         // is resolved.
         private static bool MovementBlocked() => GlobalOrbManager.HasOrbsBlockingTequilaMovement();
-
-        // The game's own world-click gate: any held input lock (GameController.inputLocks - a scripted
-        // scene, a camera move, a transition) means the game would ignore a click right now, so a
-        // mod-driven move must not start either. No controller at all reads as locked - the world
-        // cannot be driven without one.
-        private static bool InputLocked()
-        {
-            GameController gc = GameController.Singleton;
-            return gc == null || gc.IsWorldInputDisabled();
-        }
 
         private static Character Main
         {

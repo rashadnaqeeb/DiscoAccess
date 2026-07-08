@@ -30,11 +30,11 @@ namespace DiscoAccess.Module.World
         // The world keyboard mutes InControl wholesale (see WorldReader), so PressGameKey re-enables it and
         // injects the game action as pressed for this frame; the world reader reasserts the mute next frame,
         // which clears the state, so the press is a clean one-frame edge.
-        public void OpenInventory() => PressGameKey(Actions.Inventory);
-        public void OpenCharacterSheet() => PressGameKey(Actions.CharacterSheet);
-        public void OpenJournal() => PressGameKey(Actions.Journal);
-        public void OpenThoughtCabinet() => PressGameKey(Actions.ThoughtCabinet);
-        public void OpenHelp() => PressGameKey(Actions.Help);
+        public void OpenInventory() { if (MayAct()) PressGameKey(Actions.Inventory); }
+        public void OpenCharacterSheet() { if (MayAct()) PressGameKey(Actions.CharacterSheet); }
+        public void OpenJournal() { if (MayAct()) PressGameKey(Actions.Journal); }
+        public void OpenThoughtCabinet() { if (MayAct()) PressGameKey(Actions.ThoughtCabinet); }
+        public void OpenHelp() { if (MayAct()) PressGameKey(Actions.Help); }
 
         // The game's Escape/back action, context-sensitive in the game's own handler: it opens the pause menu
         // in free-roam and closes an open view or world container in a menu. Used both for the free-roam pause
@@ -48,6 +48,19 @@ namespace DiscoAccess.Module.World
         // GameActionPress injects it into InControl's own update, so the game's handlers act on it (see there).
         private static void PressGameKey(InControl.PlayerAction action)
             => Input.GameActionPress.Request(action);
+
+        // While a scripted scene holds the game's input locks the world keyboard is ours but SUSPENDED
+        // (see WorldReader): a key that acts on the game - opening a screen, using a hand item - refuses
+        // aloud, the walk verbs' rule, instead of firing into a scene the game would not let a click reach.
+        // Escape stays ungated (pausing is always the player's), as do the heals, the status readouts, and
+        // the global save/load/language keys, which fire outside world ownership too and are gated by the
+        // game itself.
+        private bool MayAct()
+        {
+            if (!GameInputLock.Held) return true;
+            _host.Speech.Speak(Strings.WorldNoControl, interrupt: true);
+            return false;
+        }
 
         // ---- Status readouts. Time reuses the game's own localized day-and-hour string; money and health
         // are composed in Core from the raw model values.
@@ -95,8 +108,8 @@ namespace DiscoAccess.Module.World
         // spoken by NotificationReader.
         public void HealEndurance() => PressGameKey(Actions.Endurance);
         public void HealVolition() => PressGameKey(Actions.Volition);
-        public void UseLeftHand() => PressGameKey(Actions.LeftHand);
-        public void UseRightHand() => PressGameKey(Actions.RightHand);
+        public void UseLeftHand() { if (MayAct()) PressGameKey(Actions.LeftHand); }
+        public void UseRightHand() { if (MayAct()) PressGameKey(Actions.RightHand); }
 
         // The game's localization terms for the two bars, used by the health readout above.
         private const string HealthTerm = "HEALTH";

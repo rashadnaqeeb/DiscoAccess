@@ -540,9 +540,9 @@ namespace DiscoAccess.Core.Strings
             // A walk was refused because an unresolved thought orb pins the character in place; full
             // clause telling the player to trigger the orb to get free.
             D("WorldOrbHolds", "held by an orb, resolve it to move"),
-            // A walk was refused because the game is not accepting world input yet (a scripted scene
-            // still animating after a dialogue's last line, a camera move, a transition); it clears by
-            // itself when control returns.
+            // A world action (a walk, a screen open, a hand item) was refused because the game is not
+            // accepting world input yet (a scripted scene still animating after a dialogue's last line,
+            // a camera move, a transition); it clears by itself when control returns.
             D("WorldNoControl", "cutscene playing"),
             // The loot panel closed, however it was closed.
             D("WorldContainerClosed", "container closed"),
@@ -1144,8 +1144,9 @@ namespace DiscoAccess.Core.Strings
         /// triggered to release it.</summary>
         public static string WorldOrbHolds => T("WorldOrbHolds");
 
-        /// <summary>Spoken when a walk is refused because the game is not accepting world input (its
-        /// input-lock gate is held by a scripted scene, a camera move, or a transition).</summary>
+        /// <summary>Spoken when a world action (a walk, a screen open, a hand item) is refused because the
+        /// game is not accepting world input (its input-lock gate is held by a scripted scene, a camera
+        /// move, or a transition).</summary>
         public static string WorldNoControl => T("WorldNoControl");
 
         // ---- Bookmarks (the mod's own named world positions; DE has no equivalent) ----

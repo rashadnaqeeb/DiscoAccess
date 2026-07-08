@@ -15,9 +15,11 @@ namespace DiscoAccess.Module.World
     /// <summary>
     /// Owns the one world overlay and the world keyboard while the player is in the isometric scene, the
     /// world-layer counterpart to <see cref="Nav.ScreenManager"/> for menus. Being in the free-roam world IS
-    /// owning the keyboard: whenever the view reads CLEAR with the player in control and no menu screen
-    /// taking it, this takes the same one lever the menu navigator uses (mutes <c>InControl</c> wholesale)
-    /// and re-provides the world keys below it, restoring the lever on leaving. It engages the overlay on
+    /// owning the keyboard: whenever the view reads CLEAR in world context (a character, no conversation, no
+    /// cutscene situation) and no menu screen takes it, this takes the same one lever the menu navigator uses
+    /// (mutes <c>InControl</c> wholesale) and re-provides the world keys below it, restoring the lever on
+    /// leaving. While the game's own click gate is closed (an input-locked tail after a dialogue) the
+    /// keyboard is held SUSPENDED rather than handed back - see <see cref="Suspended"/>. It engages the overlay on
     /// entering the world and disengages on leaving (so audio systems build/release their voices), glides the
     /// cursor from the held movement vector, and runs the <see cref="WalkInteract"/> verb.
     ///
@@ -56,6 +58,8 @@ namespace DiscoAccess.Module.World
         private bool _hasLastPlayer;
         private bool _ownsKeyboard;
         private bool _wasOwning;
+        private bool _suspended;    // owning, but the game's click gate is closed (see Suspended)
+        private bool _wasInControl; // owning with the click gate open last frame, for the map announcement
         private bool _wasGliding;
         private bool _inWorld; // the frame's view read, resolved in ResolveOwnership and reused in Tick
         private bool _viewReadyOnce;
@@ -122,20 +126,32 @@ namespace DiscoAccess.Module.World
         /// on it). Set by <see cref="ResolveOwnership"/> before input is polled.</summary>
         public bool OwnsKeyboard => _ownsKeyboard;
 
+        /// <summary>Whether the owned keyboard is SUSPENDED: the world context holds but the game's click
+        /// gate is closed (a scripted scene still animating after a dialogue's last line, a camera move, a
+        /// transition). InControl stays muted, so the game's own hotkeys cannot fire into the scene; the
+        /// status readouts keep answering; every key that acts on the game refuses aloud (see
+        /// <see cref="WalkInteract"/> and <see cref="WorldCommands"/>).</summary>
+        public bool Suspended => _suspended;
+
         /// <summary>Resolve keyboard ownership for this frame and take/restore the InControl lever. Call
         /// before polling input, after the screen manager has resolved its own ownership: a menu screen, the
         /// mod menu, or a popup is authoritative, so the world yields to it (<paramref name="screensOwn"/>),
-        /// and otherwise owns the keyboard while in free-roam with control.</summary>
+        /// and otherwise owns the keyboard while in free-roam. Ownership follows world CONTEXT (a character,
+        /// no conversation, no cutscene situation), not the game's finer click gate: through an input-locked
+        /// tail the keyboard stays ours suspended (see <see cref="Suspended"/>) instead of the game's own
+        /// hotkeys coming alive for a window the player cannot see.</summary>
         public void ResolveOwnership(bool screensOwn)
         {
             // Read the view once here and reuse it in Tick this frame (the value is frame-stable, and the
             // bridge read enters a try/catch on the per-frame pump). ResolveOwnership always runs before Tick.
             _inWorld = InWorld();
-            bool own = !screensOwn && _inWorld && _overlay.HasControl;
+            bool own = !screensOwn && _inWorld && _env.HasWorldContext;
+            // Full control on top of ownership: the game's click gate is open, so keys act rather than refuse.
+            bool inControl = own && _overlay.HasControl;
 
-            // A committed walk that outlives our control (a script grabbed the character, the area unloaded)
-            // is abandoned silently - the player did not ask to stop, so no spoken cancel.
-            if (!own && _wasOwning) _walk.Abandon();
+            // A committed walk that outlives our control (a script grabbed the character, a lock engaged,
+            // the area unloaded) is abandoned silently - the player did not ask to stop, so no spoken cancel.
+            if (!inControl && _wasInControl) _walk.Abandon();
 
             // Mute InControl wholesale and re-provide our keys below it: targeted mutes do not take, so the
             // model is all-or-nothing (same lever the menu navigator uses). Reasserted each owning frame (the
@@ -146,13 +162,17 @@ namespace DiscoAccess.Module.World
 
             // Landing on the map controls is announced by name, the world counterpart of a screen
             // speaking its ScreenName on open: closing a menu, the mod overlay, or a popup, ending a
-            // conversation, or a cutscene returning control all land here. Queued, not interrupting:
-            // the surface just closed may still be speaking its own last line (a dialogue's final
-            // node, the container-closed cue), which must finish.
-            if (own && !_wasOwning) _host.Speech.Speak(Strings.ScreenMap, interrupt: false);
+            // conversation, or a cutscene returning control all land here. Keyed on CONTROL, not
+            // ownership: after a conversation the keyboard is ours through the outro tail, but "map"
+            // waits until the game would accept a click. Queued, not interrupting: the surface just
+            // closed may still be speaking its own last line (a dialogue's final node, the
+            // container-closed cue), which must finish.
+            if (inControl && !_wasInControl) _host.Speech.Speak(Strings.ScreenMap, interrupt: false);
 
             _wasOwning = own;
+            _wasInControl = inControl;
             _ownsKeyboard = own;
+            _suspended = own && !inControl;
         }
 
         /// <summary>Engage/disengage on world entry/exit, refresh the registry, and - while we own the
@@ -210,9 +230,10 @@ namespace DiscoAccess.Module.World
             }
 
             // Hold the zoom at the area's maximum while we drive, so the cursor's roam window (the visible
-            // frame) stays as wide and as consistent as the game allows. Only while owning, so dialogue and
-            // cutscene zoom sequences are never fought.
-            _env.PinZoom();
+            // frame) stays as wide and as consistent as the game allows. Only while in control: through a
+            // suspended input-locked tail the sequencer may be moving the camera itself, which must not be
+            // fought.
+            if (!_suspended) _env.PinZoom();
 
             _overlay.Tick(dt, dirX, dirZ, GlideSpeed);
             // Read the cursor's new spot when a glide stroke ends (keys released) - the natural "where am I

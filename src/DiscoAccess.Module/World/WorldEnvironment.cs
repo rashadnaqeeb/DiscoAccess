@@ -27,26 +27,31 @@ namespace DiscoAccess.Module.World
             }
         }
 
-        /// <summary>The player controls the character when one exists, no conversation is up, and the
-        /// game itself is accepting world input. The input-lock read is the game's own click gate
-        /// (<c>GameController.inputLocks</c>, which its ground- and entity-click paths check before
-        /// moving): every scripted sequence - a dialogue's outro animation, a sequencer camera move, a
-        /// door transition, quicktravel - holds a lock for exactly its duration, so this stays false
-        /// through the window after a conversation ends while the scene still animates, and flips true
-        /// the moment the game would accept a click again. The static cutscene flag covers the staged
-        /// full-scene situations (dreams, day starts) for their whole lifetime, wider than the locks
-        /// they hold while performing. The world reader already only ticks on the in-game (CLEAR) view,
-        /// so this is the finer cutscene/dialogue gate on top of that.</summary>
-        public bool HasControl
+        /// <summary>Whether the world is playable at all: a character exists, no conversation is up, and
+        /// no staged cutscene situation (a dream, a day start - the static flag covers those for their
+        /// whole lifetime, wider than the input locks they hold while performing) owns the scene. World
+        /// keyboard OWNERSHIP follows this (see <see cref="WorldReader.ResolveOwnership"/>), so through an
+        /// input-locked tail the game's own hotkeys stay muted and the world keys refuse aloud, rather
+        /// than the game's keys coming alive for a window the player cannot see.</summary>
+        public bool HasWorldContext
         {
             get
             {
                 if (Main == null || DialogueManager.isConversationActive) return false;
-                if (Sunshine.CutsceneSituation.CUTSCENE_SITUATION_ACTIVE) return false;
-                Sunshine.GameController gc = Sunshine.GameController.Singleton;
-                return gc != null && !gc.IsWorldInputDisabled();
+                return !Sunshine.CutsceneSituation.CUTSCENE_SITUATION_ACTIVE;
             }
         }
+
+        /// <summary>The player controls the character when the world is playable
+        /// (<see cref="HasWorldContext"/>) and the game itself is accepting world input. The input-lock
+        /// read is the game's own click gate (<see cref="GameInputLock"/>, <c>GameController.inputLocks</c>,
+        /// which its ground- and entity-click paths check before moving): every scripted sequence - a
+        /// dialogue's outro animation, a sequencer camera move, a door transition, quicktravel - holds a
+        /// lock for exactly its duration, so this stays false through the window after a conversation ends
+        /// while the scene still animates, and flips true the moment the game would accept a click again.
+        /// The world reader already only ticks on the in-game (CLEAR) view, so this is the finer
+        /// cutscene/dialogue gate on top of that.</summary>
+        public bool HasControl => HasWorldContext && !GameInputLock.Held;
 
         /// <summary>Whether a player character exists at all (a game is loaded) - position reads are
         /// meaningless without one.</summary>

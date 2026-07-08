@@ -150,8 +150,10 @@ namespace DiscoAccess.Module
             _input.Register(UiActions.Home, Strings.InputJumpFirst, InputCategory.UI).AddBinding(new KeyboardBinding(KeyCode.Home));
             _input.Register(UiActions.End, Strings.InputJumpLast, InputCategory.UI).AddBinding(new KeyboardBinding(KeyCode.End));
 
-            // World keys: live only while the world reader owns the keyboard (free-roam with control, no menu
-            // taking it). The WASD glide keys are polled as a held vector each frame (read in Tick), not fired
+            // World keys: live only while the world reader owns the keyboard (free-roam, no menu taking it;
+            // through an input-locked scripted tail the keyboard is held suspended and the keys that act on
+            // the game refuse aloud - see WorldReader.Suspended). The WASD glide keys are polled as a held
+            // vector each frame (read in Tick), not fired
             // handlers, so they carry no Performed callback and do not repeat; the verbs fire WorldReader
             // methods directly (like the mod-menu hotkey, never routed through the navigator).
             _input.Register(WorldActions.MoveNorth, Strings.InputWorldMoveNorth, InputCategory.World).AddBinding(new KeyboardBinding(KeyCode.W));
@@ -252,8 +254,8 @@ namespace DiscoAccess.Module
 
             // The live category each frame: the UI category while our navigator owns the keyboard (a
             // registered screen, no popup up), plus the Status keys when that screen wants them (the
-            // conversation view); else World plus Status while the world reader owns the keyboard (free-roam
-            // with control). A menu screen is authoritative, so UI wins when both could apply (a popup over
+            // conversation view); else World plus Status while the world reader owns the keyboard (free-roam,
+            // suspended or not). A menu screen is authoritative, so UI wins when both could apply (a popup over
             // the world). Set after both managers resolve ownership in Tick, before input is polled.
             _input.ActiveCategoriesProvider = () =>
             {
