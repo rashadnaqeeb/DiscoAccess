@@ -113,8 +113,21 @@ namespace DiscoAccess.Module.World
         // spoken by NotificationReader.
         public void HealEndurance() => PressGameKey(Actions.Endurance);
         public void HealVolition() => PressGameKey(Actions.Volition);
-        public void UseLeftHand() { if (MayAct()) PressGameKey(Actions.LeftHand); }
-        public void UseRightHand() { if (MayAct()) PressGameKey(Actions.RightHand); }
+        public void UseLeftHand() { if (MayAct()) UseHand(Actions.LeftHand); }
+        public void UseRightHand() { if (MayAct()) UseHand(Actions.RightHand); }
+
+        // The game's hand-key handler clicks the HUD's held button, which acts on a CACHED item
+        // reference, and some equip paths never refresh it (a save load swaps the equipment
+        // dictionary in without touching the panel) - the click then no-ops on an empty cache. A
+        // sighted player sees the missing hand icon; for a blind player it is a silent dead key. So
+        // resync the game's cache from its own inventory model (its refresh routine, a pure re-read)
+        // before handing it the action.
+        private static void UseHand(InControl.PlayerAction action)
+        {
+            var hud = HudHeldPanelController.Current;
+            if (hud != null) hud.UpdateHeldPanel();
+            PressGameKey(action);
+        }
 
         // The game's localization terms for the two bars, used by the health readout above.
         private const string HealthTerm = "HEALTH";
