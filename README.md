@@ -47,3 +47,11 @@ Game keys: Ctrl+C character sheet, Ctrl+I inventory, Ctrl+T thoughts, Ctrl+J jou
 In inv: backspace interacts with the focused item instead of equipping.
 
 Mod settings: F12.
+
+## Controller
+
+A gamepad works alongside the keyboard; every pad control mirrors a keyboard key. Button names below are PlayStation first, Xbox in parentheses.
+
+In the world: the left stick moves the cursor. Cross (A) interacts like Enter, triangle (Y) walks to the cursor without interacting like Backspace, circle (B) recenters the cursor on your character like C, and square (X) opens the character sheet. The bumpers cycle the scanner, left going backwards. The left trigger moves the cursor to the thing the scanner last read, like J, and the right trigger walks over and interacts with it, like I. Clicking the left stick uses your left-hand item like 1, clicking the right stick uses your right-hand item like 2. On the dpad, left and right heal health and morale like the arrow keys, and down stops walking like Space. Flicking the right stick speaks a status readout: up for health, right for money, down for time, left for experience. Start opens the pause menu.
+
+In menus and dialogue: the left stick or dpad navigates, cross (A) activates like Enter, circle (B) backs out like Escape, and triangle (Y) is the secondary action like Backspace. The bumpers step between controls like Shift+Tab and Tab. On the character sheet, inventory, journal, and thoughts screens, the triggers switch between those screens, matching the game's own controller layout. In dialogue, dpad left and right still heal, and the right stick still reads status.

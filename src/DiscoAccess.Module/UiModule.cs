@@ -265,12 +265,12 @@ namespace DiscoAccess.Module
             // (the same lever that mutes the game's keyboard mutes its pad, and InControl keeps polling
             // devices for us - see GameInputMute and PadBinding). Each pad control mirrors one keyboard
             // key: the south face button is Enter (activate in menus, interact in the world), east is
-            // Escape in menus and Space (stop) in the world, north is Backspace (context action in
+            // Escape in menus and recenter in the world, north is Backspace (context action in
             // menus, walk in the world), west opens the character sheet, bumpers are Shift+Tab/Tab in
             // menus and the scanner step in the world, triggers cycle the game's info screens in menus
             // and are the J/I scan verbs in the world, stick clicks are the 1/2 hand items, Start
-            // pauses, the dpad left/right follow the arrow keys (heals outside pure menus), dpad up
-            // recenters, and right-stick flicks speak the status readouts. The left stick doubles as
+            // pauses, the dpad left/right follow the arrow keys (heals outside pure menus), dpad down
+            // stops walking, and right-stick flicks speak the status readouts. The left stick doubles as
             // UI navigation in menus and the world glide vector in free-roam; the two categories are
             // never live together.
             AddPad(UiActions.Up, Pad.DPadUp, Pad.LeftStickUp);
@@ -290,10 +290,10 @@ namespace DiscoAccess.Module
             AddPad(WorldActions.MoveEast, Pad.LeftStickRight);
             AddPad(WorldActions.MoveWest, Pad.LeftStickLeft);
             AddPad(WorldActions.Interact, Pad.Action1);
-            AddPad(WorldActions.Stop, Pad.Action2);
+            AddPad(WorldActions.Recenter, Pad.Action2);
             AddPad(WorldActions.Walk, Pad.Action4);
             AddPad(WorldActions.OpenCharacterSheet, Pad.Action3);
-            AddPad(WorldActions.Recenter, Pad.DPadUp);
+            AddPad(WorldActions.Stop, Pad.DPadDown);
             AddPad(WorldActions.Pause, Pad.Command);
             AddPad(WorldActions.ScanPrev, Pad.LeftBumper);
             AddPad(WorldActions.ScanNext, Pad.RightBumper);
@@ -308,12 +308,12 @@ namespace DiscoAccess.Module
             AddPad(WorldActions.HealVolition, Pad.DPadRight);
 
             // The right stick is the status compass: a flick speaks one readout (up health, right money,
-            // down time, left location). Status category, so the flicks stay live in dialogue like the
+            // down time, left experience). Status category, so the flicks stay live in dialogue like the
             // heals; a flick never collides with the stick's click, the right-hand item.
             AddPad(WorldActions.ReadHealth, Pad.RightStickUp);
             AddPad(WorldActions.ReadMoney, Pad.RightStickRight);
             AddPad(WorldActions.ReadTime, Pad.RightStickDown);
-            AddPad(WorldActions.ReadLocation, Pad.RightStickLeft);
+            AddPad(WorldActions.ReadExperience, Pad.RightStickLeft);
 
             // The live category each frame: the UI category while our navigator owns the keyboard (a
             // registered screen, no popup up), plus the Status keys when that screen wants them (the
