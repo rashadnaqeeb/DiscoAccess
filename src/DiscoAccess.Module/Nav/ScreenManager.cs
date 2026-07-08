@@ -13,14 +13,15 @@ namespace DiscoAccess.Module.Nav
     /// once on entry, attaches the navigator, and speaks the screen name then the landing control. While
     /// the same screen stands it ticks the screen so a rich screen can refresh its dynamic content.
     ///
-    /// We OWN the keyboard with one clean, reversible lever: disabling <c>InControl.InputManager</c>, the
-    /// upstream input source the game reads ALL its menu input from. Confirmed live that disabling it
-    /// kills every menu key at once - directions, submit, AND the Escape/back the per-view
-    /// <c>CloseOnEscapeKey</c> path and a NavigationManager toggle both failed to mute. Our own input
-    /// polls <c>UnityEngine.Input</c> directly, independent of InControl, so our keys keep working; and
-    /// activation calls <c>NavigationManager.Select</c>/<c>Submit</c> directly (not through input), so it
-    /// still runs. The lever is reasserted each frame in case the game re-enables InControl (e.g. on
-    /// focus/device change).
+    /// We OWN the keyboard with one clean, reversible lever: disabling the game's InControl action set
+    /// (<see cref="Input.GameInputMute"/>), the source the game reads ALL its menu input from - a
+    /// per-view <c>CloseOnEscapeKey</c> path and a NavigationManager toggle both failed to mute, so the
+    /// lever sits upstream of every handler at once. InControl itself keeps running, so the controller
+    /// stays readable for our own pad bindings. Our own input polls <c>UnityEngine.Input</c> directly,
+    /// independent of the action set, so our keys keep working; and activation calls
+    /// <c>NavigationManager.Select</c>/<c>Submit</c> directly (not through input), so it still runs. The
+    /// lever is reasserted each frame in case the game re-enables its set (it couples the set's Enabled
+    /// to its own input locks).
     ///
     /// The lever is taken while we drive a registered screen OR the popup overlay. DE's shared
     /// confirmation/error/quit popup (<see cref="PopupOverlay"/>) floats over any view rather than matching a
@@ -210,7 +211,7 @@ namespace DiscoAccess.Module.Nav
             // attached (untouched) and resumes when the overlay closes.
             if (_overlay != null)
             {
-                InControl.InputManager.Enabled = false; // reasserted each frame, like the screen path
+                Input.GameInputMute.Take(); // reasserted each frame, like the screen path
                 _wasOwning = true;
                 OwnsKeyboard = true;
                 if (!_overlayAttached)
@@ -250,7 +251,7 @@ namespace DiscoAccess.Module.Nav
             // screen underneath stays attached (_attachedScreen/_baseRoot untouched) so it resumes on close.
             if (PopupOverlay.IsShowing())
             {
-                InControl.InputManager.Enabled = false; // reasserted each frame, like the screen path
+                Input.GameInputMute.Take(); // reasserted each frame, like the screen path
                 _wasOwning = true;
                 OwnsKeyboard = true;
                 string msg = PopupOverlay.Message();
@@ -287,11 +288,11 @@ namespace DiscoAccess.Module.Nav
             bool own = registered;
 
             // Take the lever only while we actively drive, reasserted each frame (the game re-enables
-            // InControl on focus/device changes), and restore it exactly once when we stop. On frames we
-            // never owned, leave the game's own input state alone so we don't fight a lock it set (a
-            // cutscene, loading, or unrecognized modal).
-            if (own) InControl.InputManager.Enabled = false;
-            else if (_wasOwning) InControl.InputManager.Enabled = true;
+            // its action set through its own input-lock toggles), and restore it exactly once when we
+            // stop. On frames we never owned, leave the game's own input state alone so we don't fight a
+            // lock it set (a cutscene, loading, or unrecognized modal).
+            if (own) Input.GameInputMute.Take();
+            else if (_wasOwning) Input.GameInputMute.Release();
             _wasOwning = own;
             OwnsKeyboard = own;
 
@@ -329,7 +330,7 @@ namespace DiscoAccess.Module.Nav
             }
 
             // Build, announce, then record the attach. A BuildRoot throw is the dangerous case: we have
-            // already taken the lever (InControl is off), so an uncaught throw would leave a keyboard-only
+            // already taken the lever (the game's input is muted), so an uncaught throw would leave a keyboard-only
             // player with the game muted and our navigator never built - a dead keyboard. Catch it, hand the
             // keyboard back, and detach, so the broken screen falls back to the game's own input. (A screen
             // with no Back is fine to own - the title menu has none by design; Escape on a game view is sent
@@ -351,7 +352,7 @@ namespace DiscoAccess.Module.Nav
                     _host.LogError($"ScreenManager: building {screen.GetType().Name} failed; handing the keyboard back to the game. {e}");
                     _buildFailed = screen;
                 }
-                InControl.InputManager.Enabled = true;
+                Input.GameInputMute.Release();
                 _wasOwning = false;
                 OwnsKeyboard = false;
                 _nav.Attach(null);
@@ -386,10 +387,10 @@ namespace DiscoAccess.Module.Nav
         }
 
         /// <summary>Hand the keyboard back to the game and detach, for module teardown so a reload never
-        /// leaves InControl disabled.</summary>
+        /// leaves the game's input muted.</summary>
         public void HandBack()
         {
-            InControl.InputManager.Enabled = true;
+            Input.GameInputMute.Release();
             _nav.Attach(null);
             _attachedScreen = null;
             _baseRoot = null;

@@ -9,7 +9,7 @@ namespace DiscoAccess.Module.Input
     /// Only the number row is read (not the keypad), and only a modifier-free press: Shift+digit is a
     /// symbol, and Ctrl/Alt+digit are hotkeys, none of which are a choice jump. The dialogue view runs the
     /// UI+Status categories only, so the world's Alpha1/Alpha2 hand-item binds are inert here and never
-    /// compete; and we hold InControl off while we own the screen, so DE's own number-to-select is muted -
+    /// compete; and we mute the game's action set while we own the screen, so DE's own number-to-select is muted -
     /// a number moves the cursor, never clicks the option.
     /// </summary>
     public static class DialogueChoiceInput

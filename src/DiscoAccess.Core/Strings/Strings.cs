@@ -53,6 +53,10 @@ namespace DiscoAccess.Core.Strings
             D("InputJumpLast", "Jump to last"),
             // A control's secondary action (e.g. deleting the focused save).
             D("InputSecondary", "Secondary action"),
+            // Cycle the open info screen to the previous/next one (character sheet, inventory, journal,
+            // thought cabinet) - the game's own controller trigger cycle, re-provided.
+            D("InputScreenPrev", "Previous game screen"),
+            D("InputScreenNext", "Next game screen"),
             D("InputModMenu", "Open mod menu"),
             D("InputBookmarks", "Open bookmarks menu"),
             D("InputWorldMoveNorth", "Move cursor north"),
@@ -703,6 +707,8 @@ namespace DiscoAccess.Core.Strings
         public static string InputJumpFirst => T("InputJumpFirst");
         public static string InputJumpLast => T("InputJumpLast");
         public static string InputSecondary => T("InputSecondary");
+        public static string InputScreenPrev => T("InputScreenPrev");
+        public static string InputScreenNext => T("InputScreenNext");
         public static string InputModMenu => T("InputModMenu");
         public static string InputBookmarks => T("InputBookmarks");
         public static string InputWorldMoveNorth => T("InputWorldMoveNorth");

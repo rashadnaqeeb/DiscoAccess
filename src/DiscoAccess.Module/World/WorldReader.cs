@@ -17,8 +17,8 @@ namespace DiscoAccess.Module.World
     /// world-layer counterpart to <see cref="Nav.ScreenManager"/> for menus. Being in the free-roam world IS
     /// owning the keyboard: whenever the view reads CLEAR in world context (a character, no conversation, no
     /// cutscene situation) and no menu screen takes it, this takes the same one lever the menu navigator uses
-    /// (mutes <c>InControl</c> wholesale) and re-provides the world keys below it, restoring the lever on
-    /// leaving. While the game's own click gate is closed (an input-locked tail after a dialogue) the
+    /// (mutes the game's InControl action set, <see cref="Input.GameInputMute"/>) and re-provides the world
+    /// keys below it, restoring the lever on leaving. While the game's own click gate is closed (an input-locked tail after a dialogue) the
     /// keyboard is held SUSPENDED rather than handed back - see <see cref="Suspended"/>. It engages the overlay on
     /// entering the world and disengages on leaving (so audio systems build/release their voices), glides the
     /// cursor from the held movement vector, and runs the <see cref="WalkInteract"/> verb.
@@ -128,12 +128,12 @@ namespace DiscoAccess.Module.World
 
         /// <summary>Whether the owned keyboard is SUSPENDED: the world context holds but the game's click
         /// gate is closed (a scripted scene still animating after a dialogue's last line, a camera move, a
-        /// transition). InControl stays muted, so the game's own hotkeys cannot fire into the scene; the
+        /// transition). The game's input stays muted, so its own hotkeys cannot fire into the scene; the
         /// status readouts keep answering; every key that acts on the game refuses aloud (see
         /// <see cref="WalkInteract"/> and <see cref="WorldCommands"/>).</summary>
         public bool Suspended => _suspended;
 
-        /// <summary>Resolve keyboard ownership for this frame and take/restore the InControl lever. Call
+        /// <summary>Resolve keyboard ownership for this frame and take/restore the game-input lever. Call
         /// before polling input, after the screen manager has resolved its own ownership: a menu screen, the
         /// mod menu, or a popup is authoritative, so the world yields to it (<paramref name="screensOwn"/>),
         /// and otherwise owns the keyboard while in free-roam. Ownership follows world CONTEXT (a character,
@@ -153,12 +153,12 @@ namespace DiscoAccess.Module.World
             // the area unloaded) is abandoned silently - the player did not ask to stop, so no spoken cancel.
             if (!inControl && _wasInControl) _walk.Abandon();
 
-            // Mute InControl wholesale and re-provide our keys below it: targeted mutes do not take, so the
-            // model is all-or-nothing (same lever the menu navigator uses). Reasserted each owning frame (the
-            // game re-enables InControl on focus/device changes); handed back exactly once when we stop, but
-            // never while a menu owns it, so we don't fight the lever the screen manager just took.
-            if (own) InControl.InputManager.Enabled = false;
-            else if (_wasOwning && !screensOwn) InControl.InputManager.Enabled = true;
+            // Mute the game's action set and re-provide our keys below it (same lever the menu navigator
+            // uses, see GameInputMute). Reasserted each owning frame (the game re-enables its set through
+            // its own input-lock toggles); handed back exactly once when we stop, but never while a menu
+            // owns it, so we don't fight the lever the screen manager just took.
+            if (own) Input.GameInputMute.Take();
+            else if (_wasOwning && !screensOwn) Input.GameInputMute.Release();
 
             // Landing on the map controls is announced by name, the world counterpart of a screen
             // speaking its ScreenName on open: closing a menu, the mod overlay, or a popup, ending a

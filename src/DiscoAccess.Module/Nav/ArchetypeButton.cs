@@ -42,7 +42,7 @@ namespace DiscoAccess.Module.Nav
         private void Activate()
         {
             // Make this the game's current selection, then run its submit handler (the archetype button's
-            // ISubmitHandler), so DE's full activation runs while our keyboard lever mutes InControl.
+            // ISubmitHandler), so DE's full activation runs while our keyboard lever mutes its input.
             var nav = NavigationManager.Singleton;
             nav.Select(_selectable);
             nav.Submit();

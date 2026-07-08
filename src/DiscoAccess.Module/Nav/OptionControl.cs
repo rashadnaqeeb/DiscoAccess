@@ -15,7 +15,7 @@ namespace DiscoAccess.Module.Nav
     ///
     /// Driving changes the underlying uGUI component directly - <c>Slider.value</c>, <c>Toggle.isOn</c>,
     /// <c>TMP_Dropdown.value</c> - whose <c>onValueChanged</c> is the game's own apply path. That is the
-    /// only way to change a setting while our keyboard lever mutes InControl: a toggle activates (Enter),
+    /// only way to change a setting while our keyboard lever mutes the game's input: a toggle activates (Enter),
     /// a slider and a dropdown step on Left/Right (a dropdown cycles its options).
     /// </summary>
     public sealed class OptionControl : UIElement

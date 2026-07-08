@@ -10,8 +10,9 @@ namespace DiscoAccess.Module.Input
     ///
     /// DE selects a response by number through <c>PixelCrushers.UIButtonKeyTrigger</c>, a per-button
     /// MonoBehaviour whose <c>Update</c> reads <c>UnityEngine.Input.GetKeyDown(this.key)</c> directly and
-    /// fires the button's click. That read is raw Unity input, NOT routed through InControl - so disabling
-    /// InControl (which is how we take the keyboard everywhere else) leaves it firing, and the number press
+    /// fires the button's click. That read is raw Unity input, NOT routed through InControl - so muting the
+    /// game's action set (which is how we take the keyboard everywhere else, see
+    /// <see cref="GameInputMute"/>) leaves it firing, and the number press
     /// both moves our cursor and auto-commits the choice. A prefix that skips <c>Update</c> while we own the
     /// keyboard is the one place to stop it: the game never sees the press as a click, our reader still sees
     /// it as a move. Response buttons are <c>SunshineUIButtonKeyTrigger</c>, which inherits this base

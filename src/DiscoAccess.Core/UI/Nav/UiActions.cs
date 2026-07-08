@@ -19,5 +19,10 @@ namespace DiscoAccess.Core.UI.Nav
         public const string Back = "ui.back";
         public const string Home = "ui.home";
         public const string End = "ui.end";
+        // The game's own cycle between the info screens (character sheet, inventory, journal, thought
+        // cabinet), re-provided for the controller triggers. Not consumed by the navigator: the module's
+        // handler hands the game its own trigger action, and the game decides where the cycle applies.
+        public const string ScreenPrev = "ui.screen.prev";
+        public const string ScreenNext = "ui.screen.next";
     }
 }

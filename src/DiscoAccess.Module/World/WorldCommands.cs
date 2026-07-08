@@ -10,9 +10,9 @@ namespace DiscoAccess.Module.World
     /// (heal items, hand items, quicksave/quickload, language). Kept separate from <see cref="WorldReader"/>,
     /// which owns the cursor and the sensing overlay, so each stays one concern.
     ///
-    /// Because the world keyboard mutes InControl wholesale, each of these re-provides one muted game action
-    /// by calling the game's own method directly (the same call its native input handler would make), never by
-    /// pressing a key. The handlers are fired from the input pump, which logs any throw, so they trust the
+    /// Because the world keyboard mutes the game's action set, each of these re-provides one muted game
+    /// action by writing a real press onto it (<see cref="Input.GameActionPress"/>), so the game's own
+    /// handlers act on it with all their gating. The handlers are fired from the input pump, which logs any throw, so they trust the
     /// live singletons to exist (they do, in the in-world view this category is live in - except the global
     /// quicksave/quickload pair, which can fire before a world exists and guard for it).
     /// </summary>
@@ -27,9 +27,8 @@ namespace DiscoAccess.Module.World
         // transition - with all their gating intact. Reconstructing the open (ToggleView, a button's onClick)
         // bypasses that gating and can wedge the view state when it lands mid-animation.
         //
-        // The world keyboard mutes InControl wholesale (see WorldReader), so PressGameKey re-enables it and
-        // injects the game action as pressed for this frame; the world reader reasserts the mute next frame,
-        // which clears the state, so the press is a clean one-frame edge.
+        // The world keyboard mutes the game's action set (see WorldReader), so PressGameKey injects the
+        // game action as a pressed one-frame edge that reads through the mute (see GameActionPress).
         public void OpenInventory() { if (MayAct()) PressGameKey(Actions.Inventory); }
         public void OpenCharacterSheet() { if (MayAct()) PressGameKey(Actions.CharacterSheet); }
         public void OpenJournal() { if (MayAct()) PressGameKey(Actions.Journal); }
@@ -41,11 +40,17 @@ namespace DiscoAccess.Module.World
         // key and for Escape on any game screen, so the game closes screens the way it does for a sighted player.
         public void Escape() => PressGameKey(Actions.Pause);
 
+        // The game's own controller cycle between the open info screens (character sheet, inventory,
+        // journal, thought cabinet): hand the game its trigger actions and let its handler decide where
+        // the cycle applies, like Escape.
+        public void CycleScreenPrev() => PressGameKey(Actions.UITopTabLeft);
+        public void CycleScreenNext() => PressGameKey(Actions.UITopTabRight);
+
         // The live game action set (MyCharacterActions), the source every game menu hotkey reads.
         private static MyCharacterActions Actions => CrossPlatformInputManager.mCPIM.InputActions;
 
-        // Queue the game action as a keypress; the world reader keeps InControl enabled for the frame and
-        // GameActionPress injects it into InControl's own update, so the game's handlers act on it (see there).
+        // Queue the game action as a keypress; GameActionPress writes it onto the action for the game's
+        // handlers to read as a one-frame edge (see there).
         private static void PressGameKey(InControl.PlayerAction action)
             => Input.GameActionPress.Request(action);
 

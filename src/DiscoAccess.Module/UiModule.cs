@@ -8,6 +8,7 @@ using DiscoAccess.Module.World;
 using HarmonyLib;
 using UnityEngine;
 using UnityEngine.UI;
+using Pad = InControl.InputControlType;
 
 namespace DiscoAccess.Module
 {
@@ -252,6 +253,58 @@ namespace DiscoAccess.Module
                 () => { if (!AnyTextEditActive) ToggleBookmarks(); })
                 .AddBinding(new KeyboardBinding(KeyCode.B, ctrl: true));
 
+            // The game's own trigger cycle between the info screens (character sheet, inventory, journal,
+            // thought cabinet), re-provided as pad-only UI actions: the game's handler decides where the
+            // cycle applies, exactly like Escape. Falls through the navigator (not a nav key) to fire here.
+            _input.Register(UiActions.ScreenPrev, Strings.InputScreenPrev, InputCategory.UI,
+                () => { if (!AnyTextEditActive) _commands.CycleScreenPrev(); });
+            _input.Register(UiActions.ScreenNext, Strings.InputScreenNext, InputCategory.UI,
+                () => { if (!AnyTextEditActive) _commands.CycleScreenNext(); });
+
+            // Controller bindings, layered onto the same actions as pad siblings of the keyboard combos
+            // (the same lever that mutes the game's keyboard mutes its pad, and InControl keeps polling
+            // devices for us - see GameInputMute and PadBinding). Each pad control mirrors one keyboard
+            // key: the south face button is Enter (activate in menus, interact in the world), east is
+            // Escape in menus and Space (stop) in the world, north is Backspace (context action in
+            // menus, walk in the world), west opens the character sheet, bumpers are Shift+Tab/Tab in
+            // menus and the scanner step in the world, triggers cycle the game's info screens in menus
+            // and are the J/I scan verbs in the world, stick clicks are the 1/2 hand items, Start
+            // pauses, and the dpad left/right follow the arrow keys (heals outside pure menus). The
+            // left stick doubles as UI navigation in menus and the world glide vector in free-roam;
+            // the two categories are never live together.
+            AddPad(UiActions.Up, Pad.DPadUp, Pad.LeftStickUp);
+            AddPad(UiActions.Down, Pad.DPadDown, Pad.LeftStickDown);
+            AddPad(UiActions.Left, Pad.DPadLeft, Pad.LeftStickLeft);
+            AddPad(UiActions.Right, Pad.DPadRight, Pad.LeftStickRight);
+            AddPad(UiActions.Activate, Pad.Action1);
+            AddPad(UiActions.Back, Pad.Action2);
+            AddPad(UiActions.Secondary, Pad.Action4);
+            AddPad(UiActions.Prev, Pad.LeftBumper);
+            AddPad(UiActions.Next, Pad.RightBumper);
+            AddPad(UiActions.ScreenPrev, Pad.LeftTrigger);
+            AddPad(UiActions.ScreenNext, Pad.RightTrigger);
+
+            AddPad(WorldActions.MoveNorth, Pad.LeftStickUp);
+            AddPad(WorldActions.MoveSouth, Pad.LeftStickDown);
+            AddPad(WorldActions.MoveEast, Pad.LeftStickRight);
+            AddPad(WorldActions.MoveWest, Pad.LeftStickLeft);
+            AddPad(WorldActions.Interact, Pad.Action1);
+            AddPad(WorldActions.Stop, Pad.Action2);
+            AddPad(WorldActions.Walk, Pad.Action4);
+            AddPad(WorldActions.OpenCharacterSheet, Pad.Action3);
+            AddPad(WorldActions.Pause, Pad.Command);
+            AddPad(WorldActions.ScanPrev, Pad.LeftBumper);
+            AddPad(WorldActions.ScanNext, Pad.RightBumper);
+            AddPad(WorldActions.ScanCursor, Pad.LeftTrigger);
+            AddPad(WorldActions.ScanInteract, Pad.RightTrigger);
+            AddPad(WorldActions.LeftHandItem, Pad.LeftStickButton);
+            AddPad(WorldActions.RightHandItem, Pad.RightStickButton);
+
+            // The dpad follows the arrow keys: the two heals. Status category, so they shadow the inert
+            // UI Left/Right in a dialogue, exactly like the keyboard heal arrows.
+            AddPad(WorldActions.HealEndurance, Pad.DPadLeft);
+            AddPad(WorldActions.HealVolition, Pad.DPadRight);
+
             // The live category each frame: the UI category while our navigator owns the keyboard (a
             // registered screen, no popup up), plus the Status keys when that screen wants them (the
             // conversation view); else World plus Status while the world reader owns the keyboard (free-roam,
@@ -275,6 +328,19 @@ namespace DiscoAccess.Module
             // so it is noticed and named rather than going silently unannounced.
             foreach (var view in ScreenAdapter.UnmappedScreens())
                 _host.LogWarning($"ScreenAdapter has no name or exclusion for view {view}; it will not be announced.");
+        }
+
+        // Attach pad bindings to an already-registered action (the keyboard registrations above created
+        // them all), so the whole controller map reads as one block.
+        private void AddPad(string actionKey, params Pad[] controls)
+        {
+            foreach (InputAction a in _input.Actions)
+                if (a.Key == actionKey)
+                {
+                    foreach (Pad c in controls) a.AddBinding(new PadBinding(c));
+                    return;
+                }
+            _host.LogWarning($"UiModule: no action '{actionKey}' to bind a pad control to.");
         }
 
         // Whether any text edit owns the keyboard: a game field (grace-inclusive, see TextEditGate) or a
@@ -476,8 +542,9 @@ namespace DiscoAccess.Module
 
         public void Dispose()
         {
-            // Hand the keyboard back to the game before tearing down, so a reload never leaves InControl
-            // disabled.
+            // Hand the keyboard back to the game before tearing down, so a reload never leaves the game's
+            // action set muted or InControl frozen mid-injection.
+            Input.GameActionPress.Reset();
             _screens.HandBack();
             _world?.Dispose(); // disengage the overlay (release any audio voices) before the context drops
             _notifications?.Dispose(); // drop the static back-reference before the patches are removed
