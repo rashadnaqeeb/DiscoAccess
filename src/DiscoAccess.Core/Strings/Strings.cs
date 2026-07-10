@@ -493,10 +493,12 @@ namespace DiscoAccess.Core.Strings
             // The spoken words for the generic container types EntityNaming recognizes in dev-side
             // object names (the matching stays on the English names, which the game keeps in every
             // language; only the SPOKEN word translates). Two '|' forms: singular, plural. All nouns
-            // naming a physical lootable object in the street.
+            // naming a physical lootable object in the street. Each word must name the PROPS the token
+            // actually matches, which an ambiguous English noun does not settle: name the token's real
+            // objects (they carry a ContainerSource) rather than the reading the English first suggests.
             D("ContainerWord_box", "box|boxes"),
             D("ContainerWord_crate", "crate|crates"),
-            // A tin can (the noun, not the verb).
+            // A drink can (the noun, not the verb): the props are cola cans among returnable deposit tare.
             D("ContainerWord_can", "can|cans"),
             D("ContainerWord_bottle", "bottle|bottles"),
             D("ContainerWord_barrel", "barrel|barrels"),
@@ -508,7 +510,7 @@ namespace DiscoAccess.Core.Strings
             // A coarse cloth sack.
             D("ContainerWord_sack", "sack|sacks"),
             D("ContainerWord_bag", "bag|bags"),
-            // A cooking pot.
+            // A flower pot: the plant kind, the only lootable pot the game has.
             D("ContainerWord_pot", "pot|pots"),
             // A drinking cup.
             D("ContainerWord_cup", "cup|cups"),

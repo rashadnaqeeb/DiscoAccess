@@ -156,6 +156,15 @@ usually the game's name for the object. (A real find: `WorldPlaceCargoContainer`
 `货运集装箱` while the game's own door dialogue says `货物集装箱`.) Where the game truly never
 names the thing, keep the authored translation.
 
+For a `ContainerWord_*` token the game names nothing, so ask the scene instead: the token matches
+a substring of dev object names, and the objects it catches decide the word. Sweep them with
+`/eval` (`Resources.FindObjectsOfTypeAll<GameObject>()`, filtered by the token) before trusting
+the English gloss, which describes the token and not the props. `can` reads "a tin can" and
+catches `beerCan` and `colacan` - a drink can, so a word meaning *canned food* is wrong even
+though it renders "tin can" faithfully. Watch the tokens that are substrings of other words
+(`can` inside `canister`, `pot` inside anything) - `EntityNaming` resolves those by matching the
+longer type first, so translate each key for the props LEFT to it.
+
 Fix what is wrong; each fix is edit, copy, `/reload`, re-read. Then restore the boot language
 (the `LoadBundlesForLanguage` + `SetLanguageAndCode` pair, back to English) so the game is not
 left in a mixed UI / dialogue-language state.
