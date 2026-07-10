@@ -1,6 +1,6 @@
 ---
 name: translate
-description: Translate the mod's authored strings into one game-supported language, end to end - harvest the game's own vocabulary, decide register, draft lang/<language>.txt, validate, listen in the live game, review, commit. Use when asked to translate the mod or add a language. Not for fixing individual words in an existing translation - that is a normal edit plus dotnet test.
+description: Translate the mod's authored strings into one game-supported language, end to end - harvest the game's own vocabulary, decide register, draft lang/<language>.txt, validate, verify the composed lines against the live game, review, commit. Use when asked to translate the mod or add a language. Not for fixing individual words in an existing translation - that is a normal edit plus dotnet test.
 argument-hint: <language>
 ---
 
@@ -62,9 +62,8 @@ This also puts the game into the target language, which Phase 5 needs anyway - s
 listen phase share one switch; there is no separate "switch later" step. Caveat: `LoadBundlesForLanguage`
 loads the UI localization ("lockit") bundles but NOT the Pixel Crushers dialogue database, so live
 barks and conversation lines stay in the language the save booted in during preview. That is expected
-and does not affect reviewing authored UI strings (which never read dialogue). When done, restore the
-boot language the same way (`LoadBundlesForLanguage` + `SetLanguageAndCode` back to English) so the
-game is not left in a mixed UI-French / dialogue-English state.
+and does not affect reviewing authored UI strings (which never read dialogue). Phase 5 restores the
+boot language when the work is done.
 
 Never fetch with RTL fixing on. For the district names, also grep the target-language column of
 the dialogue terms for the place names (best effort; where the game never names a place, translate
@@ -109,26 +108,57 @@ Write the whole file in one pass, top to bottom, reading each entry's comment in
 `dotnet test DiscoAccess.slnx`. `LanguageFileTests` gates the file mechanically (unknown keys,
 dropped or invented slots, form counts, the compass). Fix until green.
 
-## Phase 5 - listen in the live game
+## Phase 5 - verify against the live game
 
-LanguageSync reads the DEPLOYED copy of the file (`<game>\BepInEx\plugins\DiscoAccess\lang\`),
-not the repo's, and with the game running a full build cannot refresh the deploy (locked DLLs).
-So the iteration loop is: edit the repo file, copy it into the deployed lang folder, then
-`POST /reload` (module recreation re-runs LanguageSync, which re-reads the file). The game is
-already in the target language from the Phase 1 load; if a restart intervened, redo that
-`LoadBundlesForLanguage` + `SetLanguageAndCode` pair (setting `CurrentLanguage` alone will not
-load the data). Deploy path is `<PluginPath>/DiscoAccess/lang/` - read `BepInEx.Paths.PluginPath`
-via `/eval` rather than hardcoding a Steam path. Then drive the real flows with `POST /input` and
-read `GET /speech` (or `/eval`'s speech capture):
+The mod's loading, hot-reload, input, and speech plumbing are known-good infrastructure; driving
+the game to watch them work again proves nothing about the translation. Two things, and only two,
+need the live game. Do those; do not press keys to re-observe the mod running.
 
-- move the world cursor and cross a district boundary (compass, distance, location readout)
-- scan to an exit (the WorldExitNamed composition - word order is the thing to hear)
-- open a dialogue with a skill check (check colour word, odds, modifiers)
-- press the heal and money keys (plurals, currency, bar-name agreement in the heal lines)
-- open journal, inventory, thought cabinet (status words in context, Tab-stop labels)
+Deploy first: LanguageSync reads the DEPLOYED copy of the file
+(`<PluginPath>/DiscoAccess/lang/` - read `BepInEx.Paths.PluginPath` via `/eval` rather than
+hardcoding a Steam path), not the repo's, and with the game running a full build cannot refresh
+the deploy (locked DLLs). So each iteration is: edit the repo file, copy it into the deployed
+lang folder, `POST /reload` (module recreation re-runs LanguageSync). The game is already in the
+target language from the Phase 1 load; if a restart intervened, redo that `LoadBundlesForLanguage`
++ `SetLanguageAndCode` pair (setting `CurrentLanguage` alone will not load the data).
 
-Fix what sounds wrong; each fix is edit, `/reload`, listen again. For RTL languages confirm the
-spoken lines are not visually reordered.
+**5a - the composed lines.** A value in isolation can be right while the line it builds is wrong:
+slots land in the wrong order, a counter word disagrees with its number, a template's punctuation
+collides with a game string. Read these by CALLING the Core accessors in one `/eval` sweep with
+representative arguments - not by driving the game into each situation, which reaches the same
+`string.Format` the long way and can't cover the edge values anyway. Cover at least:
+
+- `WorldCompass(0..7)`, `WorldDistance(0)` and `WorldDistance(n)`, `WorldHere`, `WorldAbove`
+- `ExitNamed` with both a place name and a `FloorNumber`/`WorldBasement`, and `WorldLocation`
+  with and without a floor (these two templates carry word order)
+- `WorldMoney`, `ItemValue`, `PawnshopMoney` (decimal mark and currency placement)
+- `WorldHealth`, `CrisisHeal` both directions, `WorldExperience` (many slots, bar-name agreement)
+- every counted accessor at each form its `_plural` rule selects: `SkillPoints`, `Duration`
+  (0, minutes only, hours only, both), `HealCharges`, `ItemUses`, `ThoughtResearching`, `Percent`,
+  `Step`, `Milliseconds`
+- `WorldScanCategoryCount` with a nonzero count and with 0 (which routes to the empty template),
+  `OrbNamed`, `ContainerWord` for a two-word token and for the uncountable `money`
+
+Read the output as a speaker of the language. For RTL languages confirm the composed line is in
+logical order, not visually reordered.
+
+**5b - authored nouns versus the game's own words.** This is where the real defects are, and the
+only check that genuinely needs the running game. Several keys name a thing the game ALSO names
+somewhere - in a dialogue node title, an examine line, or an I2 term the harvest did not cover.
+If the two disagree, the player hears one word from the mod and another from the game for the same
+object. The `WorldPlace*` keys and the type words (`WorldThing*`, `ContainerWord_*`) are the
+exposed ones, because they were authored precisely where a term lookup was unavailable.
+
+So: for each authored noun, search the target-language game text for what the game calls that
+thing, and adopt its wording. Grep the dialogue database and the I2 sources; where a place has a
+dialogue that fires on it, `GET /nav` while that dialogue is open shows the node title, which is
+usually the game's name for the object. (A real find: `WorldPlaceCargoContainer` was drafted
+`货运集装箱` while the game's own door dialogue says `货物集装箱`.) Where the game truly never
+names the thing, keep the authored translation.
+
+Fix what is wrong; each fix is edit, copy, `/reload`, re-read. Then restore the boot language
+(the `LoadBundlesForLanguage` + `SetLanguageAndCode` pair, back to English) so the game is not
+left in a mixed UI / dialogue-language state.
 
 ## Phase 6 - fresh-eyes review
 
@@ -136,7 +166,7 @@ Spawn ONE subagent with clean context (general-purpose). Give it the finished fi
 at Strings.cs; instruct it to compare each entry against the English value, the comment, and the
 declared register, and to report only entries that are wrong, misleading, register-breaking, or
 drop information - explicitly not stylistic preferences. Apply the fixes you agree with, re-run
-the tests, re-listen to anything changed.
+the tests, and re-read any composed line a fix touched.
 
 ## Phase 7 - commit
 
