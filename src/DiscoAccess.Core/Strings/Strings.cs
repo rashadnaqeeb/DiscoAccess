@@ -463,11 +463,15 @@ namespace DiscoAccess.Core.Strings
             // bathroom, a door connecting two hotel rooms, and a door that is permanently locked.
             D("WorldThingBathroomDoor", "bathroom door"),
             D("WorldThingConnectingDoor", "connecting door"),
+            // Locked, not merely shut: StatusOpen is the spoken contrast, so a word that also reads
+            // as "closed" tells the player nothing. Reuse the game's own I2 TOOLTIP_LOCKED word.
             D("WorldThingLockedDoor", "locked door"),
             // Authored destination name for the harbour secretary's office: the game's own area
             // label for that interior is just "Harbour", the same word the actual harbour speaks,
             // so a door into the office would be indistinguishable by ear from a harbour gate.
             // Fills the destination slot of WorldExitNamed ("secretary's office door"). Noun phrase.
+            // The secretary is a MAN in the script (the game's dialogue calls him one), which the
+            // English possessive hides: a gendered language builds this on a masculine noun.
             D("WorldPlaceSecretaryOffice", "secretary's office"),
             // The same for the dockworkers' union boss's office (Evrart's container): its game area
             // label is also just "Harbour". "Union" matches the game's own vocabulary (I2 term
@@ -475,7 +479,10 @@ namespace DiscoAccess.Core.Strings
             D("WorldPlaceUnionOffice", "union office"),
             // The same for the enterable cargo container in the container yard (Union-container-int),
             // the third and last area the game labels "Harbour". "Cargo container" is the game's own
-            // examine wording; its owner is a discovery, so no name that reveals one. Noun phrase.
+            // examine wording ("A cargo container stands before you. One of many in this yard."), and
+            // that line is the wording to match: dialogue elsewhere calls the same object by a second
+            // phrase, which a translation must not take instead. Its owner is a discovery, so no name
+            // that reveals one. Noun phrase.
             D("WorldPlaceCargoContainer", "cargo container"),
             // An exit named for where it goes: {0} = the destination name, {1} = the portal type word
             // ("Whirling in Rags door", "floor 2 stairs"); order the two as the language wants.
@@ -540,7 +547,8 @@ namespace DiscoAccess.Core.Strings
             D("ContainerWord_wallet", "wallet|wallets"),
             // A metal grating over an opening.
             D("ContainerWord_grate", "grate|grates"),
-            // An air vent.
+            // An air vent: the grating itself (the props are wall vents along the boardwalk), never a
+            // language's word for the building's ventilation system.
             D("ContainerWord_vent", "vent|vents"),
             // Loose money lying in the world (coins/bills to pick up); uncountable, both forms alike.
             D("ContainerWord_money", "money|money"),

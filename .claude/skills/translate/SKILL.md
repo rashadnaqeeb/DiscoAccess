@@ -102,6 +102,21 @@ Write the whole file in one pass, top to bottom, reading each entry's comment in
   punctuation only (no emdashes or typographic quotes - the reader voices them).
 - "Match I2" keys use the harvested vocabulary, inflected as the sentence needs.
 - Write values in logical character order (normal typing order), including for RTL scripts.
+- The literal spaces and commas inside the templates are ENGLISH punctuation, not part of the slot:
+  `WorldExitNamed`, `WorldLocation`, `WorldScanCategoryCount` and `WorldOrbNamed` join two pieces,
+  and a CJK translation should join them with its own punctuation (or none) rather than carrying the
+  English space over. Traditional Chinese is not a character conversion of `zh.txt`: harvest the
+  game's own zh-TW column and let it arbitrate vocabulary, then diff against `zh.txt` for keys the
+  game does not cover.
+- **Gendered languages: never inflect a value for a noun the runtime supplies.** Several values are
+  spoken appended after a noun the mod does not choose - an item's name, an equipment slot's caption,
+  a health bar's name, a scanner category word - and those nouns differ in gender, so no single
+  inflection agrees with all of them. Give such a value its own head noun ("a new item", "an empty
+  slot") or an invariant phrasing ("at a critical level"), never a bare adjective. The exposed keys
+  are `InventoryFresh`, `InventorySlotEmpty`, `WorldScanCategoryEmpty`, and `CrisisHealLeft`/`Right`
+  (both bar names, e.g. Saúde feminine and Moral masculine). Two look like the same trap and are not:
+  `StatusOpen` speaks only after a door, and `StatusHasSomethingToSay` only after Kim, so each may
+  agree with that one referent - the table's comments say so.
 
 ## Phase 4 - validate
 
@@ -138,6 +153,11 @@ representative arguments - not by driving the game into each situation, which re
   `Step`, `Milliseconds`
 - `WorldScanCategoryCount` with a nonzero count and with 0 (which routes to the empty template),
   `OrbNamed`, `ContainerWord` for a two-word token and for the uncountable `money`
+- in a gendered language, every line whose slot takes a runtime noun, at BOTH genders: `CrisisHeal`
+  with each bar name, and `WorldScanCategoryCount(cat, 0)` for a masculine and a feminine category
+  (pass the values, e.g. `WorldScanExits` and `WorldScanOrbs`, not invented strings)
+- pass game-sourced strings from I2 rather than typing them as C# literals into the `/eval` body:
+  non-ASCII in the request body can arrive mangled and will look like a translation bug that is not
 
 Read the output as a speaker of the language. For RTL languages confirm the composed line is in
 logical order, not visually reordered.
@@ -150,32 +170,91 @@ object. The `WorldPlace*` keys and the type words (`WorldThing*`, `ContainerWord
 exposed ones, because they were authored precisely where a term lookup was unavailable.
 
 So: for each authored noun, search the target-language game text for what the game calls that
-thing, and adopt its wording. Grep the dialogue database and the I2 sources; where a place has a
-dialogue that fires on it, `GET /nav` while that dialogue is open shows the node title, which is
-usually the game's name for the object. (A real find: `WorldPlaceCargoContainer` was drafted
-`货运集装箱` while the game's own door dialogue says `货物集装箱`.) Where the game truly never
-names the thing, keep the authored translation.
+thing, and adopt its wording.
 
-For a `ContainerWord_*` token the game names nothing, so ask the scene instead: the token matches
-a substring of dev object names, and the objects it catches decide the word. Sweep them with
-`/eval` (`Resources.FindObjectsOfTypeAll<GameObject>()`, filtered by the token) before trusting
-the English gloss, which describes the token and not the props. `can` reads "a tin can" and
-catches `beerCan` and `colacan` - a drink can, so a word meaning *canned food* is wrong even
-though it renders "tin can" faithfully. Watch the tokens that are substrings of other words
-(`can` inside `canister`, `pot` inside anything) - `EntityNaming` resolves those by matching the
-longer type first, so translate each key for the props LEFT to it.
+**The game's text is in I2 sources, so this is a table lookup, not a grep of the disk.**
+`LocalizationManager.Sources` holds a group of sources per loaded language. Two facts make the
+search easy. Each source carries only ONE language column, so a term's language is decided by which
+source you read it from; and `GetTermData` on a source needs only `LoadBundlesForLanguage`, not a
+language switch, so you can hold English and the target side by side.
 
-Fix what is wrong; each fix is edit, copy, `/reload`, re-read. Then restore the boot language
-(the `LoadBundlesForLanguage` + `SetLanguageAndCode` pair, back to English) so the game is not
-left in a mixed UI / dialogue-language state.
+Enumerate the sources first and print each one's index, `mLanguages` names, and `mTerms.Count` -
+the indices move as languages load, so never hardcode them from a previous run. Each language group
+has two sources that matter, and they are NOT interchangeable:
+
+- The **named-term source** (~5k terms) holds everything addressable by name: `Actors/<id>/Name`,
+  `Conversation/<id>/Title` and `/Description`, `Items/<id>/Description`, `Area Names/<scene>`,
+  `Thoughts/`, `Skills/`, plus the UI terms Phase 1 harvested. This is where the English-to-target
+  lookup happens, because the English column is here too.
+- The **dialogue-text source** (~70k terms) holds the spoken lines, keyed `Dialogue Text/0x…` (plus
+  `AlternateN`, `tooltipN`). The keys are HASHES: they carry no English, so you cannot look a thing
+  up by name here. Search it by VALUE, in the target language, and only for prose the named terms
+  do not cover - an examine line, a bark that names an object.
+
+Search the ENGLISH named-term source for a term whose VALUE names the thing, then read that same
+term out of the target's named-term source:
+
+```csharp
+var en = I2.Loc.LocalizationManager.Sources[2], tgt = I2.Loc.LocalizationManager.Sources[40]; // from the enumeration
+string T(string term) { var td = tgt.GetTermData(term); return td?.Languages[0]; }
+// scan en.mTerms for Languages[0].Contains("Union"), print td.Term + T(td.Term)
+```
+
+**Search with ASCII-only needles.** Non-ASCII in an `/eval` request body can arrive mangled, so a
+needle typed in the target language silently matches nothing - and a zero hit reads as "the game
+never names this thing", which is the exact wrong conclusion. Cut the needle back to its
+diacritic-free substring (`sekretar`, `kontener transportow`) or compare against a string fetched
+from the game.
+
+Real finds: `Actors/.../Name` "Cargo Container Door" is `Porta do Container de Carga`, so pt-BR
+takes the game's *container*, not the dictionary's *contêiner*; an item description mentions the
+`escritório do Sindicato dos Estivadores`, naming `WorldPlaceUnionOffice`. Confirm the authored
+name is really needed by reading `Area Names/<scene>-int` in the target language: the three harbour
+interiors all return one word (`Porto`), which is exactly why those keys exist. Where a place has a
+dialogue that fires on it, `GET /nav` while that dialogue is open shows the node title.
+
+Where the game never names the place itself, it may still name the person or object the authored
+name is built from, and that settles an inflection the English hides: the harbour secretary is a man
+in the script (Polish `sekretarz`), so `WorldPlaceSecretaryOffice` cannot be built on a feminine
+noun. Search for the referent, not only the phrase. And where two game phrasings exist, take the one
+the key's comment points at: the yard container is `kontener transportowy` in the examine line and
+`kontener towarowy` in a line of Kim's, and the comment names the examine line.
+
+For a `ContainerWord_*` token the game names nothing, so ask the scene instead: the objects a token
+catches decide the word. Sweep `Resources.FindObjectsOfTypeAll<Sunshine.ContainerSource>()` and
+bucket `gameObject.name` by token. **Bucket by WHOLE TOKEN, the way `EntityNaming.FindContainerType`
+matches**: split the name on whitespace, underscore and hyphen, then compare each token (with a
+regular `-s`/`-es` stripped) against the type words, after first checking for the adjacent pair
+`trash can`. There is no longest-substring rule, so `can` never matches inside `canister` or
+`trashcan`, and `cup` never matches inside `cupboard`. Bucketing by SUBSTRING instead invents props
+a token does not actually catch - every cupboard in the game lands under `cup` - and also drowns the
+real props in UI objects (`Inventory` contains `vent`, `Copotype` contains `pot`).
+
+Their scene and parent path is the evidence: `can` catches objects under `Containers/Plaza Tare` and
+`Yard Tare`, returnable deposit tare, so it is a drink can and a word meaning *canned food* is wrong
+even though it renders "tin can" faithfully; `pot` catches one `Flower Pot`; `locker` catches
+`Sea-fortress-int` steel lockers while `cabinet` catches an office cabinet, which is what keeps them
+two words in a language that would otherwise collapse them; `vent` catches boardwalk wall vents, so
+it is the object, not the building's ventilation system. A token that catches nothing in the loaded
+scene keeps the sense its table comment states.
+
+Fix what is wrong; each fix is edit, copy, `/reload`, re-read. Restore the boot language LAST (the
+`LoadBundlesForLanguage` + `SetLanguageAndCode` pair, back to English) so the game is not left in a
+mixed UI / dialogue-language state: LanguageSync follows the game language, so once the game is back
+on English a `/reload` drops the file and the accessors answer in English again.
 
 ## Phase 6 - fresh-eyes review
 
 Spawn ONE subagent with clean context (general-purpose). Give it the finished file and point it
 at Strings.cs; instruct it to compare each entry against the English value, the comment, and the
 declared register, and to report only entries that are wrong, misleading, register-breaking, or
-drop information - explicitly not stylistic preferences. Apply the fixes you agree with, re-run
-the tests, and re-read any composed line a fix touched.
+drop information - explicitly not stylistic preferences. Name the agreement class explicitly (an
+authored word that must agree with a noun the runtime picks) and hand it the harvested vocabulary,
+so it judges against the game rather than its own taste. Apply the fixes you agree with, re-run the
+tests, and re-read any composed line a fix touched.
+
+A reviewer that reads the composition sites in the module may report a key as broken that the code
+proves safe (`StatusOpen` fires only on doors). Check the caller before rewording on its word.
 
 ## Phase 7 - commit
 
