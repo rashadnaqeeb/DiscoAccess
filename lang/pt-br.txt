@@ -1,4 +1,4 @@
-# DiscoAccess authored strings - Brazilian Portuguese.
+# Whirling in Words authored strings - Brazilian Portuguese.
 # Register: Brazilian Portuguese, "voce" address and "voce"-imperatives, matching the
 # game's own localization (Voce esta aqui, Voce tem, Pressione), plain neutral terse
 # screen-reader style. Adjectives that would follow a slot whose gender varies are
@@ -13,8 +13,8 @@
 # penhores, collage = montagem, delete = apagar, union = sindicato, cargo container =
 # container de carga. thing = objeto, item (scanner group) = item.
 _plural = french
-ModLoaded = Acessibilidade de Disco Elysium carregada
-ModuleFailed = Falha ao carregar os recursos do DiscoAccess
+ModLoaded = Whirling in Words {0} carregado
+ModuleFailed = Falha ao carregar os recursos do Whirling in Words
 InputNavigateUp = Navegar para cima
 InputNavigateDown = Navegar para baixo
 InputNavigateLeft = Navegar para a esquerda

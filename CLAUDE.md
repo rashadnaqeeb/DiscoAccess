@@ -1,6 +1,7 @@
-# DiscoAccess - Claude Code Instructions
+# Whirling in Words - Claude Code Instructions
 
-DiscoAccess makes **Disco Elysium (The Final Cut)** playable by blind users. Speech is the sole
+Whirling in Words (code identifier `WhirlingInWords`, named after the game's Whirling-in-Rags)
+makes **Disco Elysium (The Final Cut)** playable by blind users. Speech is the sole
 interface, so if something fails silently, speaks stale data, or omits information, the player has no
 way to know. A logged failure is actionable; a silent one is invisible.
 
@@ -28,7 +29,7 @@ game's own controller-navigation and pathfinding.
   much of its UI in a custom "Sunshine" / "Pages" framework (`PagesSystem`, `Pages.Gameplay.*`, `SubPage`).
 - Speech backend is **Prism** (https://github.com/ethindp/prism), bound via hand-written P/Invoke
   against `prism.dll`, vendored in `third_party/prism/` and deployed next to `disco.exe`.
-- Logs: our lines go through BepInEx logging with a `[DiscoAccess]` prefix into
+- Logs: our lines go through BepInEx logging with a `[Whirling in Words]` prefix into
   `<game>\BepInEx\LogOutput.log` (truncated each launch).
 
 ## Decompiled reference
@@ -58,28 +59,28 @@ e.g. `SenseOrb$$`), which writes `decompiled/ghidra/<query>.c`. After a game upd
 original accessibility, but the Il2CppInterop proxies we actually compile against
 (`<game>/BepInEx/interop/`) generate most members public. A method shown `private` in `decompiled/`
 (e.g. `QuicktravelController.IsQuicktravelAvailable()`) is usually still callable from
-`DiscoAccess.Module` and the dev REPL, so don't conclude "private, won't compile" from the source;
+`WhirlingInWords.Module` and the dev REPL, so don't conclude "private, won't compile" from the source;
 verify by building (`dotnet build`) or calling it in the REPL. To check a proxy method is bound to
 native rather than returning a stub default, call a sibling whose true value differs from the default
 (`IsOutside()` returning true proved the binding works).
 
 ## Build & deploy
 
-`dotnet build` is the whole loop. The `DiscoAccess` project has a post-build target (Debug only) that
-copies `DiscoAccess.dll` + `DiscoAccess.Core.dll` into `<GameDir>\BepInEx\plugins\DiscoAccess\` and
+`dotnet build` is the whole loop. The `WhirlingInWords` project has a post-build target (Debug only) that
+copies `WhirlingInWords.dll` + `WhirlingInWords.Core.dll` into `<GameDir>\BepInEx\plugins\WhirlingInWords\` and
 `prism.dll` next to `disco.exe`, with `GameDir` auto-detected (see above). **Close the game first** or
 the dll copy is skipped (file locked) and you'll run a stale build. `build.ps1` is just a wrapper for
 `dotnet build`; deploy is automatic.
 
-- `dotnet build DiscoAccess.slnx -c Debug` - build all four projects and deploy.
-- `dotnet test DiscoAccess.slnx` - run the unit suite (Core only; no game, no Unity).
+- `dotnet build WhirlingInWords.slnx -c Debug` - build all four projects and deploy.
+- `dotnet test WhirlingInWords.slnx` - run the unit suite (Core only; no game, no Unity).
 - `dotnet build -c Release` compiles without deploying.
 
 **Build Debug to test.** Always build Debug (the default) when verifying a change - only Debug deploys,
 so `-c Release` proves compilation but leaves a stale deployed build and an untested change; reach for
 it only for a deliberate non-deploying compile. If a Debug deploy is skipped because the running game
 has the DLLs locked (`MSB3021` "being used by another process") and the change needs a restart to take
-effect (any `DiscoAccess.Core` or host change, which can't hot-reload), carry the whole cycle yourself
+effect (any `WhirlingInWords.Core` or host change, which can't hot-reload), carry the whole cycle yourself
 rather than handing back a "you need to relaunch": close the game, re-run `dotnet build` so the deploy
 lands, then relaunch through Steam (kill/launch commands under Gotchas). A pure-module change needs no
 restart (F6 / `POST /reload`).
@@ -91,8 +92,8 @@ push when the user asks.
 
 **Dev driver (in-process HTTP server + hot-reload) - for iteration, not a player feature.** A loopback
 dev server is baked into the host (`Debug` only) and **on by default**, binding **127.0.0.1 only**
-(reachable from this machine alone). Disable with `DISCOACCESS_NO_DEV=1`; set the port with
-`DISCOACCESS_DEV_PORT` (default 8771). It lets an agent introspect and drive the live game over
+(reachable from this machine alone). Disable with `WHIRLING_NO_DEV=1`; set the port with
+`WHIRLING_DEV_PORT` (default 8771). It lets an agent introspect and drive the live game over
 `http://127.0.0.1:8771`.
 
 Bring-up: launch through Steam (kill/launch commands under Gotchas), then poll
@@ -159,11 +160,11 @@ game's own call does, so a patch can be smoke-tested without gameplay: call the 
 the announcement. If it does not fire from the REPL, the patch is **not applied** - check `/module`,
 don't theorize about native-vs-managed call paths.
 
-**Headless / overnight runs:** set `DISCOACCESS_NO_SPEECH=1` to skip Prism init so an unattended session
+**Headless / overnight runs:** set `WHIRLING_NO_SPEECH=1` to skip Prism init so an unattended session
 doesn't depend on a running screen reader (NVDA). Spoken text is still captured for `/speech`.
 
-Iteration loop for feature code, no game restart: edit `DiscoAccess.Module`,
-`dotnet build src/DiscoAccess.Module/DiscoAccess.Module.csproj` (its `DeployModule` target copies just
+Iteration loop for feature code, no game restart: edit `WhirlingInWords.Module`,
+`dotnet build src/WhirlingInWords.Module/WhirlingInWords.Module.csproj` (its `DeployModule` target copies just
 the unlocked module DLL), then `curl -X POST .../reload` or press **F6** in-game. The host reloads the
 module from its DLL bytes; the socket, Prism, and REPL stay live. Host or Core changes still need a
 restart (close the game first, since those DLLs are then locked).
@@ -181,22 +182,22 @@ After a game update, relaunch once through Steam to regenerate `BepInEx/interop/
 Four projects, the Hand-of-Fate split adapted to IL2CPP, with the engine-coupled side split again
 into a permanent host and a reloadable module so feature code can hot-reload (see Dev driver above):
 
-- **`DiscoAccess.Core`** (netstandard2.0) - engine-agnostic logic: the speech pipeline, text filter,
+- **`WhirlingInWords.Core`** (netstandard2.0) - engine-agnostic logic: the speech pipeline, text filter,
   announcement composition, the authored-strings table, and the `IModHost`/`IModModule` contracts.
   References nothing external (no Unity, no BepInEx) so it stays unit-testable off-engine, and it loads
   in the default load context so host and module agree on the contract type identity. If a piece of
   code decides what words the user hears, it belongs here.
-- **`DiscoAccess`** (net6.0) - the permanent host: only what can never reload. The BepInEx `BasePlugin`
+- **`WhirlingInWords`** (net6.0) - the permanent host: only what can never reload. The BepInEx `BasePlugin`
   entry, the Prism P/Invoke + backend, the one injected MonoBehaviour pump (`HostPump`; IL2CPP type
   registration is permanent for the process), the dev HTTP server + Mono.CSharp REPL, and the module
   loader. Changing host code needs a game restart, so keep it minimal.
-- **`DiscoAccess.Module`** (net6.0) - the reloadable module: the adapters/readers/announcers and any
+- **`WhirlingInWords.Module`** (net6.0) - the reloadable module: the adapters/readers/announcers and any
   Harmony patches. Implements `IModModule`, driven by the host's pump. Injects **no** IL2CPP types and
   owns no native handles. **This is where day-to-day feature work goes** - it reloads with no restart.
   The host loads it from the DLL bytes into a collectible `AssemblyLoadContext`.
-- **`DiscoAccess.Tests`** (net8.0 + xUnit) - references Core only. No Unity, no game launch.
+- **`WhirlingInWords.Tests`** (net8.0 + xUnit) - references Core only. No Unity, no game launch.
 
-**Permanent vs reloadable rule.** New feature/adapter/reader/patch code goes in `DiscoAccess.Module`.
+**Permanent vs reloadable rule.** New feature/adapter/reader/patch code goes in `WhirlingInWords.Module`.
 Only entry, native (Prism/P-Invoke), socket-owning, or IL2CPP-type-injecting code goes in the host.
 A module must never call `ClassInjector.RegisterTypeInIl2Cpp` (permanent for the process) and must
 own no native handle, or it can't be torn down on reload. Module-owned Harmony uses a per-load
@@ -217,7 +218,7 @@ below.)
 ## Conventions & invariants
 
 **Speech, logging & input**
-- All speech goes through `SpeechPipeline` (`DiscoAccess.Core.Speech.SpeechPipeline`); never call the
+- All speech goes through `SpeechPipeline` (`WhirlingInWords.Core.Speech.SpeechPipeline`); never call the
   Prism backend directly. All logging goes through the mod's logger (the BepInEx `ManualLogSource`,
   surfaced as `Plugin.Logger`; if logic in Core ever needs to log, route it through a seam so Core
   stays dependency-free), never Unity's `Debug.Log`. Inside any `*.Input` namespace, fully qualify `UnityEngine.Input`.
@@ -239,7 +240,7 @@ below.)
   screen and section names and status words, like the load announcement, are the usual cases that have
   none).
 - **No inline user-facing string literals.** Every word the mod itself authors and speaks must come
-  from the mod's central strings table in Core (`DiscoAccess.Core.Strings.Strings`), never an inline
+  from the mod's central strings table in Core (`WhirlingInWords.Core.Strings.Strings`), never an inline
   literal. Punctuation and log/debug text are exempt. The table is runtime-translatable: each string
   is a key with an English default, and a `lang/<language>.txt` file (loaded by the module's
   `LanguageSync`, which follows the game language) overrides values per key, missing keys falling back
@@ -310,7 +311,7 @@ term ends in `_IMG`; the spoken caption lives at the sibling `Buttons/<base>_TEX
 no-ops here). Kill the game with `MSYS_NO_PATHCONV=1 taskkill.exe /F /IM disco.exe` (plain `taskkill`
 from the Bash tool mangles `/F` into a path). Don't invoke `powershell.exe` from the Bash tool; the
 auto-mode classifier blocks it, so build with `dotnet build` directly. Adding or altering a
-`DiscoAccess.Core` type is NOT picked up by F6/`POST /reload` (Core loads permanently in the host's
+`WhirlingInWords.Core` type is NOT picked up by F6/`POST /reload` (Core loads permanently in the host's
 default context); the reload reports success but `Module.Tick` then throws `TypeLoadException` every
 frame, so do a full restart (close game, `dotnet build`, relaunch). Pure-module edits hot-reload fine.
 

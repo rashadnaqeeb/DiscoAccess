@@ -1,4 +1,4 @@
-# DiscoAccess authored strings - Russian.
+# Whirling in Words authored strings - Russian.
 # Register: standard literary Russian, formal "вы", plain neutral terse screen-reader
 # style, matching the game's own Russian localization (Вы находитесь здесь, У вас).
 # Game vocabulary reused: check = проверка (белая/красная), thought cabinet = шкафчик
@@ -6,8 +6,8 @@
 # журнал, character sheet = страница персонажа, locked = заблокировано, currency = реал,
 # archetype = архетип, signature skill = коронный навык.
 _plural = slavic
-ModLoaded = Доступность Disco Elysium загружена
-ModuleFailed = Не удалось загрузить функции DiscoAccess
+ModLoaded = Танцы в словах {0} загружены
+ModuleFailed = Не удалось загрузить функции мода Танцы в словах
 InputNavigateUp = Перейти вверх
 InputNavigateDown = Перейти вниз
 InputNavigateLeft = Перейти влево

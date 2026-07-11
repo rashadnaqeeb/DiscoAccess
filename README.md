@@ -1,6 +1,6 @@
-# DiscoAccess beta testing notes
+# Whirling in Words beta testing notes
 
-DiscoAccess is a mod that makes Disco Elysium: The Final Cut playable by blind users. 
+Whirling in Words is a mod that makes Disco Elysium: The Final Cut playable by blind users. 
 ## Install
 
 You need Disco Elysium: The Final Cut on Steam, and the .NET SDK, version 9.0.200 or later, from https://dotnet.microsoft.com/download.

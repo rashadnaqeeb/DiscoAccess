@@ -1,4 +1,4 @@
-# DiscoAccess authored strings - Arabic.
+# Whirling in Words authored strings - Arabic.
 # Register: Modern Standard Arabic (MSA), plain neutral, terse screen-reader style,
 # matching the game's own MSA localization. Game vocabulary reused: check = اختبار
 # (أبيض/أحمر), thought cabinet = كابينة الأفكار, thought = فكرة, health = الصحة,
@@ -7,8 +7,8 @@
 # Words spoken after a noun the game picks (an item, a slot) carry their own head noun
 # instead of agreeing with it: غرض جديد, خانة فارغة.
 _plural = arabic
-ModLoaded = تم تحميل إتاحة ديسكو إليزيوم
-ModuleFailed = فشل تحميل ميزات ديسكو أكسس
+ModLoaded = تم تحميل ورلينج إن ووردز {0}
+ModuleFailed = فشل تحميل ميزات ورلينج إن ووردز
 InputNavigateUp = التنقل لأعلى
 InputNavigateDown = التنقل لأسفل
 InputNavigateLeft = التنقل لليسار

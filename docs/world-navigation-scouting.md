@@ -1,6 +1,6 @@
 # World Navigation: Scouting Notes
 
-Feasibility findings for porting WOTR-style world navigation into DiscoAccess. Everything
+Feasibility findings for porting WOTR-style world navigation into WhirlingInWords. Everything
 here was confirmed against the running game (Martinaise exterior, opening) via the dev `/eval`
 REPL unless marked otherwise. This is a scouting reference, not a build plan.
 
@@ -16,7 +16,7 @@ we ride the game's.
 
 WOTR's exploration code cleanly separates engine-agnostic logic from engine glue.
 
-- Reuse (lands in `DiscoAccess.Core`): the overlay framework (an `OverlayManager` holding overlays,
+- Reuse (lands in `WhirlingInWords.Core`): the overlay framework (an `OverlayManager` holding overlays,
   each with one shared cursor plus a list of `OverlaySystem` lenses, movement modes kept separate
   from systems), the scanner taxonomy and shape geometry, spatial math, the sonar sweep timing and
   pan/volume formulas, and the announcement composer.

@@ -1,5 +1,5 @@
-# build.ps1 - Build DiscoAccess and deploy it into the game. Deploy itself is the
-# DiscoAccess project's Debug post-build target (plugin + module into BepInEx\plugins,
+# build.ps1 - Build WhirlingInWords and deploy it into the game. Deploy itself is the
+# WhirlingInWords project's Debug post-build target (plugin + module into BepInEx\plugins,
 # prism.dll next to disco.exe); this script locates the game, checks BepInEx is set up,
 # and runs the build. Close the game first, or the dll copy is skipped (file locked)
 # and you'll run a stale build.
@@ -58,8 +58,8 @@ if (-not (Test-Path "$Game\BepInEx\interop")) {
 }
 
 # --- Build (the Debug post-build target deploys) ---
-Write-Host "Building DiscoAccess (game: $Game)..." -ForegroundColor Cyan
-dotnet build "$PSScriptRoot\DiscoAccess.slnx" -c Debug
+Write-Host "Building WhirlingInWords (game: $Game)..." -ForegroundColor Cyan
+dotnet build "$PSScriptRoot\WhirlingInWords.slnx" -c Debug
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Build FAILED." -ForegroundColor Red
     exit 1

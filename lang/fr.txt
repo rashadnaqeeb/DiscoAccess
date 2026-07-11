@@ -1,4 +1,4 @@
-# DiscoAccess authored strings - French.
+# Whirling in Words authored strings - French.
 # Register: standard written French, formal "vous", plain neutral terse screen-reader
 # style, matching the game's own French localization (Vous etes ici, Vous avez).
 # Game vocabulary reused: check = lancer (blanc/rouge), thought cabinet = tiroir a
@@ -9,8 +9,8 @@
 # Words spoken after a noun the game picks (an item, a category) carry their own head noun
 # instead of agreeing with it: nouvel objet, rien.
 _plural = french
-ModLoaded = Accessibilité Disco Elysium chargée
-ModuleFailed = Échec du chargement des fonctions DiscoAccess
+ModLoaded = Whirling in Words {0} chargé
+ModuleFailed = Échec du chargement des fonctions de Whirling in Words
 InputNavigateUp = Naviguer vers le haut
 InputNavigateDown = Naviguer vers le bas
 InputNavigateLeft = Naviguer vers la gauche

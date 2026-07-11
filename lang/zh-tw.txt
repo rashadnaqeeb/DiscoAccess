@@ -1,4 +1,4 @@
-# DiscoAccess authored strings - Traditional Chinese.
+# Whirling in Words authored strings - Traditional Chinese.
 # Register: standard written Traditional Chinese (Taiwan), plain neutral terse
 # screen-reader style, matching the game's own zh-TW localization. Full-width
 # punctuation as normal written Chinese; no spaces between words. Chinese has no
@@ -14,8 +14,8 @@
 # Mod jargon: cursor = 游標, scanner = 掃描, thing = 物體, item = 物品,
 # interactable = 可互動物件.
 _plural = one
-ModLoaded = 極樂迪斯科無障礙已載入
-ModuleFailed = DiscoAccess 功能載入失敗
+ModLoaded = 言語飛旋 {0} 已載入
+ModuleFailed = 言語飛旋功能載入失敗
 InputNavigateUp = 向上導覽
 InputNavigateDown = 向下導覽
 InputNavigateLeft = 向左導覽

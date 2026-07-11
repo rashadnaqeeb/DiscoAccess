@@ -1,4 +1,4 @@
-# DiscoAccess authored strings - Korean.
+# Whirling in Words authored strings - Korean.
 # Register: plain terse screen-reader Korean. UI labels and status words are noun or
 # 명사형 phrases with no sentence ending; the few authored full sentences that instruct
 # the player use 합쇼체 (-습니다 / -십시오), matching the game's own tooltips; the cutscene
@@ -18,8 +18,8 @@
 # Mod jargon: cursor = 커서, scanner = 스캐너, sonar = 소나, thing = 물체, item = 아이템,
 # container = 보관함, bookmark = 북마크.
 _plural = one
-ModLoaded = 디스코 엘리시움 접근성 로드됨
-ModuleFailed = DiscoAccess 기능을 불러오지 못했습니다
+ModLoaded = 언어 두른 소용돌이 {0} 로드됨
+ModuleFailed = 언어 두른 소용돌이 기능을 불러오지 못했습니다
 InputNavigateUp = 위로 이동
 InputNavigateDown = 아래로 이동
 InputNavigateLeft = 왼쪽으로 이동

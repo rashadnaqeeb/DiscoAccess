@@ -1,4 +1,4 @@
-# DiscoAccess authored strings - Polish.
+# Whirling in Words authored strings - Polish.
 # Register: standard literary Polish, informal "ty" for the player, matching the game's own
 # Polish localization (Tu jesteś, Masz, Wydaj punkt umiejętności). Terse neutral screen-reader
 # style, lowercase where the English is lowercase.
@@ -8,8 +8,8 @@
 # zablokowane, currency = reáli, signature skill = umiejętność wiodąca, ability spread =
 # rozkład atrybutów, skill points = punkty umiejętności, bullets = naboje.
 _plural = slavic
-ModLoaded = Dostępność Disco Elysium wczytana
-ModuleFailed = Nie udało się wczytać funkcji DiscoAccess
+ModLoaded = Wczytano Whirling in Words {0}
+ModuleFailed = Nie udało się wczytać funkcji Whirling in Words
 InputNavigateUp = Przejdź w górę
 InputNavigateDown = Przejdź w dół
 InputNavigateLeft = Przejdź w lewo
