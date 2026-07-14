@@ -2,7 +2,7 @@ use semver::Version;
 use wxdragon::prelude::*;
 
 use crate::core::detect::{self, GameInstall, GameSource};
-use crate::core::github::{self, Asset};
+use crate::core::github::{self, Asset, ReleaseInfo};
 use crate::core::install::{self, InstallState};
 use crate::core::process;
 use crate::core::uninstall;
@@ -67,24 +67,25 @@ pub fn run() {
         reinstall_btn.enable(false);
         uninstall_btn.enable(false);
 
-        let release = match github::fetch_latest_release() {
-            Ok(release) => {
+        let releases = match github::fetch_releases() {
+            Ok(releases) => {
                 log_append(&log, s.log_connected);
-                Some(release)
+                releases
             }
             Err(e) => {
                 log_append(&log, &fill(s.log_github_error, &[("error", &e)]));
-                None
+                Vec::new()
             }
         };
-        let asset = release.as_ref().and_then(github::find_mod_zip);
+        let asset = github::latest_release(&releases).and_then(github::find_mod_zip);
         if let Some(asset) = asset.as_ref() {
             log_append(&log, &fill(s.log_latest_asset, &[("name", &asset.name)]));
         } else {
             log_append(&log, s.log_no_asset);
         }
 
-        if let Some(detected) = detect::detect_game() {
+        let detected = detect::detect_game();
+        if let Some(detected) = detected.as_ref() {
             path_input.set_value(&detected.path.to_string_lossy());
             log_append(
                 &log,
@@ -101,6 +102,7 @@ pub fn run() {
         refresh_state(
             s,
             &path_input,
+            detected.as_ref(),
             &status,
             &install_btn,
             &reinstall_btn,
@@ -118,6 +120,7 @@ pub fn run() {
             let uninstall_btn_c = uninstall_btn.clone();
             let log_c = log.clone();
             let asset_c = asset.clone();
+            let detected_c = detected.clone();
 
             browse_btn.on_click(move |_| {
                 let dialog = DirDialog::builder(&frame_c, s.dir_dialog_title, "").build();
@@ -144,6 +147,7 @@ pub fn run() {
                 refresh_state(
                     s,
                     &path_input_c,
+                    detected_c.as_ref(),
                     &status_c,
                     &install_btn_c,
                     &reinstall_btn_c,
@@ -163,20 +167,23 @@ pub fn run() {
             let uninstall_btn_c = uninstall_btn.clone();
             let log_c = log.clone();
             let asset_c = asset.clone();
+            let detected_c = detected.clone();
+            let releases_c = releases.clone();
 
             install_btn.on_click(move |_| {
                 let Some(asset) = asset_c.as_ref() else {
                     show_logged_error(s, &frame_c, &log_c, s.err_no_zip);
                     return;
                 };
-                let Some(game) = game_from_input(&path_input_c) else {
+                let Some(game) = game_from_input(&path_input_c, detected_c.as_ref()) else {
                     show_logged_error(s, &frame_c, &log_c, s.err_select_valid);
                     return;
                 };
-                install_asset(s, &frame_c, &game, asset, false, &log_c);
+                install_asset(s, &frame_c, &game, asset, false, &releases_c, &log_c);
                 refresh_state(
                     s,
                     &path_input_c,
+                    detected_c.as_ref(),
                     &status_c,
                     &install_btn_c,
                     &reinstall_btn_c,
@@ -196,20 +203,23 @@ pub fn run() {
             let uninstall_btn_c = uninstall_btn.clone();
             let log_c = log.clone();
             let asset_c = asset.clone();
+            let detected_c = detected.clone();
+            let releases_c = releases.clone();
 
             reinstall_btn.on_click(move |_| {
                 let Some(asset) = asset_c.as_ref() else {
                     show_logged_error(s, &frame_c, &log_c, s.err_no_zip);
                     return;
                 };
-                let Some(game) = game_from_input(&path_input_c) else {
+                let Some(game) = game_from_input(&path_input_c, detected_c.as_ref()) else {
                     show_logged_error(s, &frame_c, &log_c, s.err_select_valid);
                     return;
                 };
-                install_asset(s, &frame_c, &game, asset, true, &log_c);
+                install_asset(s, &frame_c, &game, asset, true, &releases_c, &log_c);
                 refresh_state(
                     s,
                     &path_input_c,
+                    detected_c.as_ref(),
                     &status_c,
                     &install_btn_c,
                     &reinstall_btn_c,
@@ -229,9 +239,10 @@ pub fn run() {
             let uninstall_btn_c = uninstall_btn.clone();
             let log_c = log.clone();
             let asset_c = asset.clone();
+            let detected_c = detected.clone();
 
             uninstall_btn.on_click(move |_| {
-                let Some(game) = game_from_input(&path_input_c) else {
+                let Some(game) = game_from_input(&path_input_c, detected_c.as_ref()) else {
                     show_logged_error(s, &frame_c, &log_c, s.err_select_valid);
                     return;
                 };
@@ -270,6 +281,7 @@ pub fn run() {
                 refresh_state(
                     s,
                     &path_input_c,
+                    detected_c.as_ref(),
                     &status_c,
                     &install_btn_c,
                     &reinstall_btn_c,
@@ -292,21 +304,23 @@ pub fn run() {
     .expect("Failed to start installer UI");
 }
 
-fn game_from_input(path_input: &TextCtrl) -> Option<GameInstall> {
+fn game_from_input(path_input: &TextCtrl, detected: Option<&GameInstall>) -> Option<GameInstall> {
     let path = std::path::PathBuf::from(path_input.get_value());
-    if detect::validate_game_dir(&path) {
-        Some(GameInstall {
-            path,
-            source: GameSource::Manual,
-        })
-    } else {
-        None
+    if !detect::validate_game_dir(&path) {
+        return None;
     }
+    // The input is pre-filled from auto-detection; only a path the user changed is manual.
+    let source = match detected {
+        Some(detected) if detected.path == path => detected.source.clone(),
+        _ => GameSource::Manual,
+    };
+    Some(GameInstall { path, source })
 }
 
 fn refresh_state(
     s: &'static Strings,
     path_input: &TextCtrl,
+    detected: Option<&GameInstall>,
     status: &StaticText,
     install_btn: &Button,
     reinstall_btn: &Button,
@@ -314,7 +328,7 @@ fn refresh_state(
     asset: Option<&Asset>,
     log: &TextCtrl,
 ) {
-    let Some(game) = game_from_input(path_input) else {
+    let Some(game) = game_from_input(path_input, detected) else {
         install_btn.enable(false);
         reinstall_btn.enable(false);
         uninstall_btn.enable(false);
@@ -384,6 +398,7 @@ fn install_asset(
     game: &GameInstall,
     asset: &Asset,
     force: bool,
+    releases: &[ReleaseInfo],
     log: &TextCtrl,
 ) {
     if process::is_game_running() {
@@ -425,6 +440,9 @@ fn install_asset(
         Ok(()) => {
             log_append(log, s.msg_install_complete);
             log_append(log, s.msg_first_launch_note);
+            for line in changelog_lines(s, &state, asset, releases) {
+                log_append(log, &line);
+            }
             show_info(
                 s,
                 parent,
@@ -438,6 +456,36 @@ fn install_asset(
             &fill(s.msg_install_failed, &[("error", &e)]),
         ),
     }
+}
+
+/// The release notes of every version this install crossed, as displayable lines:
+/// a header, then each version's heading and body, oldest first. Empty for a fresh
+/// install (no starting version) and for a reinstall of the same version.
+fn changelog_lines(
+    s: &Strings,
+    state_before: &InstallState,
+    asset: &Asset,
+    releases: &[ReleaseInfo],
+) -> Vec<String> {
+    let Some(from) = install::installed_version(state_before) else {
+        return Vec::new();
+    };
+    let Some(to) = asset.version().and_then(|v| Version::parse(&v).ok()) else {
+        return Vec::new();
+    };
+    let entries = github::changelog_between(releases, &from, &to);
+    if entries.is_empty() {
+        return Vec::new();
+    }
+    let mut lines = vec![fill(s.log_whats_new, &[("version", &from.to_string())])];
+    for (version, body) in entries {
+        lines.push(fill(
+            s.log_whats_new_version,
+            &[("version", &version.to_string())],
+        ));
+        lines.push(body.to_string());
+    }
+    lines
 }
 
 fn log_append(log: &TextCtrl, message: &str) {

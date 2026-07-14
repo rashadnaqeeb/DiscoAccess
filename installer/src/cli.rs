@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use semver::Version;
 
 use crate::core::detect::{self, GameInstall, GameSource};
-use crate::core::github;
+use crate::core::github::{self, Asset, ReleaseInfo};
 use crate::core::install::{self, InstallState};
 use crate::core::process;
 use crate::core::uninstall;
@@ -94,14 +94,14 @@ fn install_latest(s: &Strings, game: &GameInstall, force: bool) {
     }
 
     let state = install::classify_install(&game.path);
-    let release = match github::fetch_latest_release() {
+    let releases = match github::fetch_releases() {
         Ok(r) => r,
         Err(e) => {
             println!("{}", fill(s.cli_error, &[("error", &e)]));
             return;
         }
     };
-    let Some(asset) = github::find_mod_zip(&release) else {
+    let Some(asset) = github::latest_release(&releases).and_then(github::find_mod_zip) else {
         println!("{}", s.log_no_asset);
         return;
     };
@@ -137,8 +137,33 @@ fn install_latest(s: &Strings, game: &GameInstall, force: bool) {
         Ok(()) => {
             println!("{}", s.msg_install_complete);
             println!("{}", s.msg_first_launch_note);
+            print_changelog(s, &state, &asset, &releases);
         }
         Err(e) => println!("{}", fill(s.cli_error, &[("error", &e)])),
+    }
+}
+
+/// Print the release notes of every version this install crossed, oldest first.
+/// Prints nothing for a fresh install or a reinstall of the same version.
+fn print_changelog(s: &Strings, state_before: &InstallState, asset: &Asset, releases: &[ReleaseInfo]) {
+    let Some(from) = install::installed_version(state_before) else {
+        return;
+    };
+    let Some(to) = asset.version().and_then(|v| Version::parse(&v).ok()) else {
+        return;
+    };
+    let entries = github::changelog_between(releases, &from, &to);
+    if entries.is_empty() {
+        return;
+    }
+    println!();
+    println!("{}", fill(s.log_whats_new, &[("version", &from.to_string())]));
+    for (version, body) in entries {
+        println!(
+            "{}",
+            fill(s.log_whats_new_version, &[("version", &version.to_string())])
+        );
+        println!("{body}");
     }
 }
 

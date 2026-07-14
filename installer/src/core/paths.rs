@@ -1,7 +1,9 @@
 use std::path::{Path, PathBuf};
 
-pub const GITHUB_API_URL: &str =
-    "https://api.github.com/repos/rashadnaqeeb/WhirlingInWords/releases/latest";
+// The full release list, newest first: one call serves both the latest-version
+// lookup and the per-version release notes shown after an update.
+pub const GITHUB_RELEASES_URL: &str =
+    "https://api.github.com/repos/rashadnaqeeb/WhirlingInWords/releases?per_page=100";
 pub const MOD_ZIP_PREFIX: &str = "WhirlingInWords-v";
 pub const MOD_ZIP_SUFFIX: &str = ".zip";
 pub const GAME_EXE: &str = "disco.exe";
