@@ -650,6 +650,34 @@ mod tests {
         assert!(!dir.path().join(paths::LEGACY_PLUGIN_DIR_REL).exists());
     }
 
+    #[test]
+    fn uninstall_removes_empty_dirs_the_zip_created() {
+        let dir = tempfile::tempdir().unwrap();
+        // The vendored BepInEx zip ships an empty patchers dir; the manifest records files
+        // only, so uninstall must sweep it separately.
+        let zip_path = dir.path().join("release.zip");
+        let file = fs::File::create(&zip_path).unwrap();
+        let mut zip = zip::ZipWriter::new(file);
+        let options = zip::write::SimpleFileOptions::default();
+        zip.add_directory("BepInEx/patchers", options).unwrap();
+        zip.start_file(paths::PLUGIN_REL, options).unwrap();
+        zip.write_all(b"plugin").unwrap();
+        zip.finish().unwrap();
+
+        let manifest = install_from_zip(
+            &zip_path,
+            dir.path(),
+            &GameSource::Manual,
+            &test_asset(),
+            &InstallState::Fresh,
+        )
+        .unwrap();
+        assert!(dir.path().join("BepInEx/patchers").is_dir());
+
+        uninstall::uninstall(dir.path(), &manifest).unwrap();
+        assert!(!dir.path().join("BepInEx").exists());
+    }
+
     fn create_zip(path: &Path, entries: &[(&str, &str)]) {
         let file = fs::File::create(path).unwrap();
         let mut zip = zip::ZipWriter::new(file);

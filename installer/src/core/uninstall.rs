@@ -47,7 +47,29 @@ pub fn uninstall(game_dir: &Path, manifest: &InstallManifest) -> Result<(), Stri
         }
         remove_empty_parents(game_dir, manifest_path.parent());
     }
+
+    // The mod zips carry directory entries with no files in them (the vendored BepInEx zip
+    // ships an empty patchers dir). The manifest records files only, so the walks above never
+    // visit such a dir; sweep the mod-owned tree for leftover empty dirs.
+    remove_empty_dirs(&game_dir.join("BepInEx"));
     Ok(())
+}
+
+/// Remove `root` and everything below it that is an empty directory, deepest first. A dir
+/// holding any file survives, so this can never delete data.
+fn remove_empty_dirs(root: &Path) {
+    if !root.is_dir() {
+        return;
+    }
+    if let Ok(entries) = fs::read_dir(root) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                remove_empty_dirs(&path);
+            }
+        }
+    }
+    let _ = fs::remove_dir(root);
 }
 
 pub(crate) fn remove_empty_parents(game_dir: &Path, mut current: Option<&Path>) {
