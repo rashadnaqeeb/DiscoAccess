@@ -29,7 +29,7 @@ Menus speak as you move through them. Arrow keys navigate, Tab and Shift+Tab mov
 
 ### The cursor
 
-WASD moves a cursor around the world, blocked by walls and geometry. To avoid getting stuck on small debris and furniture, it can hop over meter-wide gaps. Enter clicks whatever the cursor is on: your character walks over and interacts. Backspace walks to the cursor without interacting, C recenters the cursor on your character, and Space stops walking.
+WASD moves a cursor around the world, blocked by walls and geometry; hold Shift to move it at double speed. To avoid getting stuck on small debris and furniture, it can hop over meter-wide gaps. Enter clicks whatever the cursor is on: your character walks over and interacts. Backspace walks to the cursor without interacting, C recenters the cursor on your character, and Space stops walking.
 
 As you move you hear wall tones where geometry blocks you, and a sonar that sweeps your surroundings, placing a typed sound on each nearby object. The cursor can also glide past the edge of what your character currently senses, into unexplored ground, with a sound marking each crossing in and out; a setting restricts it to the sensed area if you prefer. Since the camera follows your character, moving your character reveals more of the map. This means that once your cursor reaches the unsensed area, you should move your character again to start detecting new objects. Think of it a bit like fog of war.
 
@@ -55,7 +55,7 @@ F12 opens the mod's settings anywhere. You can toggle automatic dialogue reading
 
 Shift+F1 opens a key help screen from anywhere that lists every key in context.
 
-Cursor: WASD moves the cursor, Enter interacts with whatever it is on, Backspace walks to the cursor without interacting, C recenters the cursor on your character, Space stops walking.
+Cursor: WASD moves the cursor, Shift+WASD moves it at double speed, Enter interacts with whatever it is on, Backspace walks to the cursor without interacting, C recenters the cursor on your character, Space stops walking.
 
 Scanner: Page Down and Page Up cycle, Ctrl+Page Down and Ctrl+Page Up switch category, comma for people and interactables, period for containers and orbs, slash for exits, Shift reverses. I interacts with the scanned object, J moves the cursor to it, P speaks the walking direction toward it.
 

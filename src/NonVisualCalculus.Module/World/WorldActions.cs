@@ -12,6 +12,11 @@ namespace NonVisualCalculus.Module.World
         public const string MoveSouth = "world.move.south";
         public const string MoveEast = "world.move.east";
         public const string MoveWest = "world.move.west";
+        // The Shift-held glide keys: same directions at double speed.
+        public const string MoveNorthFast = "world.move.north.fast";
+        public const string MoveSouthFast = "world.move.south.fast";
+        public const string MoveEastFast = "world.move.east.fast";
+        public const string MoveWestFast = "world.move.west.fast";
         public const string Recenter = "world.recenter";
         public const string Interact = "world.interact";
         public const string Walk = "world.walk";

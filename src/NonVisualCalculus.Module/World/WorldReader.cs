@@ -29,7 +29,7 @@ namespace NonVisualCalculus.Module.World
     /// </summary>
     public sealed class WorldReader : IDisposable
     {
-        /// <summary>The cursor glide rate, metres per second.</summary>
+        /// <summary>The cursor glide rate, metres per second. The Shift-held glide keys double it.</summary>
         private const float GlideSpeed = 4f;
 
         /// <summary>How far the character may move in one step and still count as walking. A single-step jump
@@ -177,8 +177,9 @@ namespace NonVisualCalculus.Module.World
 
         /// <summary>Engage/disengage on world entry/exit, refresh the registry, and - while we own the
         /// keyboard - glide the cursor by the held vector (<paramref name="dirX"/> east, <paramref name="dirZ"/>
-        /// north) and advance the interact verb. Call after input is polled.</summary>
-        public void Tick(float dirX, float dirZ)
+        /// north; <paramref name="fast"/> doubles the speed) and advance the interact verb. Call after
+        /// input is polled.</summary>
+        public void Tick(float dirX, float dirZ, bool fast)
         {
             // Re-place the live one-shots first, every frame regardless of world/ownership state: a voice
             // fired a moment ago keeps tracking (and draining) through a conversation or an area exit.
@@ -235,7 +236,7 @@ namespace NonVisualCalculus.Module.World
             // fought.
             if (!_suspended) _env.PinZoom();
 
-            _overlay.Tick(dt, dirX, dirZ, GlideSpeed);
+            _overlay.Tick(dt, dirX, dirZ, fast ? GlideSpeed * 2f : GlideSpeed);
             // Read the cursor's new spot when a glide stroke ends (keys released) - the natural "where am I
             // now" - rather than every frame, which would be a wall of speech.
             bool gliding = dirX != 0f || dirZ != 0f;

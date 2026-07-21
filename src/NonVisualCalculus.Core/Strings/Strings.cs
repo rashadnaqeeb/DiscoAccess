@@ -85,6 +85,10 @@ namespace NonVisualCalculus.Core.Strings
             D("InputWorldMoveSouth", "Move cursor south"),
             D("InputWorldMoveEast", "Move cursor east"),
             D("InputWorldMoveWest", "Move cursor west"),
+            D("InputWorldMoveNorthFast", "Move cursor north fast"),
+            D("InputWorldMoveSouthFast", "Move cursor south fast"),
+            D("InputWorldMoveEastFast", "Move cursor east fast"),
+            D("InputWorldMoveWestFast", "Move cursor west fast"),
             D("InputWorldRecenter", "Recenter cursor on character"),
             D("InputWorldInteract", "Walk and interact"),
             D("InputWorldWalk", "Walk to cursor without interacting"),
@@ -163,6 +167,8 @@ namespace NonVisualCalculus.Core.Strings
             D("KeyHelpKeysArrows", "arrow keys"),
             D("KeyHelpGroupMoveCursor", "Move cursor"),
             D("KeyHelpKeysWasd", "W A S D"),
+            D("KeyHelpGroupMoveCursorFast", "Move cursor fast"),
+            D("KeyHelpKeysShiftWasd", "Shift W A S D"),
             // The dialogue number jump's keys phrase (the number-row range).
             D("KeyHelpKeysDigits", "1 to 9"),
             D("KeyHelpGroupNextPrevControl", "Next and previous control"),
@@ -894,6 +900,10 @@ namespace NonVisualCalculus.Core.Strings
         public static string InputWorldMoveSouth => T("InputWorldMoveSouth");
         public static string InputWorldMoveEast => T("InputWorldMoveEast");
         public static string InputWorldMoveWest => T("InputWorldMoveWest");
+        public static string InputWorldMoveNorthFast => T("InputWorldMoveNorthFast");
+        public static string InputWorldMoveSouthFast => T("InputWorldMoveSouthFast");
+        public static string InputWorldMoveEastFast => T("InputWorldMoveEastFast");
+        public static string InputWorldMoveWestFast => T("InputWorldMoveWestFast");
         public static string InputWorldRecenter => T("InputWorldRecenter");
         public static string InputWorldInteract => T("InputWorldInteract");
         public static string InputWorldWalk => T("InputWorldWalk");
@@ -960,6 +970,8 @@ namespace NonVisualCalculus.Core.Strings
         public static string KeyHelpKeysArrows => T("KeyHelpKeysArrows");
         public static string KeyHelpGroupMoveCursor => T("KeyHelpGroupMoveCursor");
         public static string KeyHelpKeysWasd => T("KeyHelpKeysWasd");
+        public static string KeyHelpGroupMoveCursorFast => T("KeyHelpGroupMoveCursorFast");
+        public static string KeyHelpKeysShiftWasd => T("KeyHelpKeysShiftWasd");
         public static string KeyHelpKeysDigits => T("KeyHelpKeysDigits");
         public static string KeyHelpGroupNextPrevControl => T("KeyHelpGroupNextPrevControl");
         public static string KeyHelpGroupJumpFirstLast => T("KeyHelpGroupJumpFirstLast");

@@ -169,6 +169,13 @@ namespace NonVisualCalculus.Module
             _input.Register(WorldActions.MoveSouth, Strings.InputWorldMoveSouth, InputCategory.World).AddBinding(new KeyboardBinding(KeyCode.S));
             _input.Register(WorldActions.MoveEast, Strings.InputWorldMoveEast, InputCategory.World).AddBinding(new KeyboardBinding(KeyCode.D));
             _input.Register(WorldActions.MoveWest, Strings.InputWorldMoveWest, InputCategory.World).AddBinding(new KeyboardBinding(KeyCode.A));
+            // Shift with a glide key doubles the cursor speed. A separate action set, not a check on the
+            // Shift key itself: a binding's modifiers match exactly (Shift+W never fires the bare-W
+            // binding), and its own actions keep the fast stroke rebindable and listed in key help.
+            _input.Register(WorldActions.MoveNorthFast, Strings.InputWorldMoveNorthFast, InputCategory.World).AddBinding(new KeyboardBinding(KeyCode.W, shift: true));
+            _input.Register(WorldActions.MoveSouthFast, Strings.InputWorldMoveSouthFast, InputCategory.World).AddBinding(new KeyboardBinding(KeyCode.S, shift: true));
+            _input.Register(WorldActions.MoveEastFast, Strings.InputWorldMoveEastFast, InputCategory.World).AddBinding(new KeyboardBinding(KeyCode.D, shift: true));
+            _input.Register(WorldActions.MoveWestFast, Strings.InputWorldMoveWestFast, InputCategory.World).AddBinding(new KeyboardBinding(KeyCode.A, shift: true));
             _input.Register(WorldActions.Recenter, Strings.InputWorldRecenter, InputCategory.World, () => _world.Recenter()).AddBinding(new KeyboardBinding(KeyCode.C));
             _input.Register(WorldActions.Interact, Strings.InputWorldInteract, InputCategory.World, () => _world.Interact())
                 .AddBinding(new KeyboardBinding(KeyCode.Return)).AddBinding(new KeyboardBinding(KeyCode.KeypadEnter));
@@ -411,6 +418,8 @@ namespace NonVisualCalculus.Module
                     new[] { UiActions.Home, UiActions.End }),
                 new KeyHelpGroup(Strings.KeyHelpGroupMoveCursor, Strings.KeyHelpKeysWasd,
                     new[] { WorldActions.MoveNorth, WorldActions.MoveSouth, WorldActions.MoveEast, WorldActions.MoveWest }),
+                new KeyHelpGroup(Strings.KeyHelpGroupMoveCursorFast, Strings.KeyHelpKeysShiftWasd,
+                    new[] { WorldActions.MoveNorthFast, WorldActions.MoveSouthFast, WorldActions.MoveEastFast, WorldActions.MoveWestFast }),
                 new KeyHelpGroup(Strings.KeyHelpGroupScanThing, null,
                     new[] { WorldActions.ScanNext, WorldActions.ScanPrev }),
                 new KeyHelpGroup(Strings.KeyHelpGroupScanCategory, null,
@@ -522,14 +531,19 @@ namespace NonVisualCalculus.Module
             // idle in menus, dialogue, and at the title. The held WASD vector (live only while the world owns
             // the keyboard) glides the cursor; the interact/recenter/stop verbs fired above act on it.
             float glideX = 0f, glideZ = 0f;
+            bool glideFast = false;
             if (_world.OwnsKeyboard)
             {
                 if (_input.Held(WorldActions.MoveEast)) glideX += 1f;
                 if (_input.Held(WorldActions.MoveWest)) glideX -= 1f;
                 if (_input.Held(WorldActions.MoveNorth)) glideZ += 1f;
                 if (_input.Held(WorldActions.MoveSouth)) glideZ -= 1f;
+                if (_input.Held(WorldActions.MoveEastFast)) { glideX += 1f; glideFast = true; }
+                if (_input.Held(WorldActions.MoveWestFast)) { glideX -= 1f; glideFast = true; }
+                if (_input.Held(WorldActions.MoveNorthFast)) { glideZ += 1f; glideFast = true; }
+                if (_input.Held(WorldActions.MoveSouthFast)) { glideZ -= 1f; glideFast = true; }
             }
-            _world.Tick(glideX, glideZ);
+            _world.Tick(glideX, glideZ, glideFast);
 
             // Speak any HUD notifications the game raised since last frame (the crisis interrupts; the rest
             // queue). Drained here so they are announced from one place on the pump, like every other readout.

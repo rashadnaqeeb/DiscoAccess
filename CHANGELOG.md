@@ -4,6 +4,10 @@ Release notes for Non-Visual Calculus. Ongoing work is recorded under the Unrele
 
 ## Unreleased
 
+New Features and improvements:
+
+- Hold Shift with WASD to move the cursor at double speed.
+
 Bug fixes:
 
 - The bookmark name field now accepts IME-composed text, so Chinese and other IME names can be typed.
